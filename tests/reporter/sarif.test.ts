@@ -60,7 +60,7 @@ describe('SARIF Reporter', () => {
     const sarif = JSON.parse(formatSarifReport(mockResult));
     const driver = sarif.runs[0].tool.driver;
     expect(driver.name).toBe('codopsy-ts');
-    expect(driver.version).toBe('1.0.0');
+    expect(driver.version).toBe('1.0.1');
   });
 
   it('issueがresultsに変換される', () => {

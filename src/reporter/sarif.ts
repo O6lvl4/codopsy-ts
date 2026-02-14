@@ -121,7 +121,7 @@ export function formatSarifReport(result: AnalysisResult): string {
         tool: {
           driver: {
             name: 'codopsy-ts',
-            version: '1.0.0',
+            version: '1.0.1',
             informationUri: 'https://github.com/O6lvl4/codopsy-ts',
             rules: collectRules(result),
           },

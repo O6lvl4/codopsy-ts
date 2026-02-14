@@ -195,7 +195,7 @@ const program = new Command();
 program
   .name('codopsy-ts')
   .description('A code quality analysis CLI tool / ソースコードの品質を解析するCLIツール')
-  .version('1.0.0');
+  .version('1.0.1');
 
 program
   .command('analyze')

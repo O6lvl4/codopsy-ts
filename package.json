@@ -1,7 +1,7 @@
 {
   "name": "codopsy-ts",
-  "version": "1.0.0",
-  "description": "ソースコードの品質を解析するCLIツール",
+  "version": "1.0.1",
+  "description": "AST-level code quality analyzer for TypeScript & JavaScript. Cyclomatic & cognitive complexity, 13 lint rules, JSON/HTML/SARIF output.",
   "type": "module",
   "main": "dist/index.js",
   "types": "./dist/index.d.ts",
