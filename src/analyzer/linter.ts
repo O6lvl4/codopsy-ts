@@ -90,7 +90,9 @@ function checkNoEmptyFunction(
 
     if (body && body.statements.length === 0) {
       const bodyText = body.getText(sourceFile).slice(1, -1).trim();
-      if (bodyText === '' || /^(\/\/[^\n]*\n?\s*|\/\*[\s\S]*?\*\/\s*)*$/.test(bodyText)) {
+      // Only flag truly empty functions (no content at all).
+      // Functions with comments are considered intentional (e.g. event handlers, keep-alive callbacks).
+      if (bodyText === '') {
         const { line, column } = getLineAndColumn(sourceFile, node.getStart(sourceFile));
         issues.push(
           createIssue({
@@ -110,6 +112,13 @@ function checkNoEmptyFunction(
   visit(sourceFile);
 }
 
+/** Check if a node is a JSX boundary (element, self-closing, or fragment). */
+function isJsxBoundary(node: ts.Node): boolean {
+  return ts.isJsxElement(node) ||
+    ts.isJsxSelfClosingElement(node) ||
+    ts.isJsxFragment(node);
+}
+
 function checkNoNestedTernary(
   sourceFile: ts.SourceFile,
   filePath: string,
@@ -121,6 +130,12 @@ function checkNoNestedTernary(
       function hasNestedTernary(child: ts.Node): boolean {
         if (child !== node && ts.isConditionalExpression(child)) {
           return true;
+        }
+        // Stop recursion at JSX boundaries — ternaries inside JSX elements
+        // (e.g. style props, child expressions) are in a separate visual context
+        // and should not be treated as nested ternaries.
+        if (isJsxBoundary(child)) {
+          return false;
         }
         return ts.forEachChild(child, (grandchild) => {
           if (hasNestedTernary(grandchild)) return true;

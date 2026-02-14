@@ -50,6 +50,14 @@ describe('lintFile', () => {
       const issues = lintFile('test.ts', 'const foo = () => {};');
       expect(issues.some(i => i.rule === 'no-empty-function')).toBe(true);
     });
+    it('コメントのみの関数は意図的と見なし報告しない', () => {
+      const issues = lintFile('test.ts', 'const foo = () => { /* keep-alive */ };');
+      expect(issues.some(i => i.rule === 'no-empty-function')).toBe(false);
+    });
+    it('行コメントのみの関数も意図的と見なし報告しない', () => {
+      const issues = lintFile('test.ts', 'function foo() { // intentionally empty\n}');
+      expect(issues.some(i => i.rule === 'no-empty-function')).toBe(false);
+    });
   });
 
   describe('no-nested-ternary', () => {
@@ -62,6 +70,21 @@ describe('lintFile', () => {
       const code = 'const x = a ? 1 : 2;';
       const issues = lintFile('test.ts', code);
       expect(issues.some(i => i.rule === 'no-nested-ternary')).toBe(false);
+    });
+    it('JSX内のスタイルternaryはネストと見なさない', () => {
+      const code = `const el = cond ? <div style={{ color: flag ? 'red' : 'blue' }} /> : <span />;`;
+      const issues = lintFile('test.tsx', code);
+      expect(issues.some(i => i.rule === 'no-nested-ternary')).toBe(false);
+    });
+    it('JSX子要素内のternaryはネストと見なさない', () => {
+      const code = `const el = show ? <div>{x ? 'a' : 'b'}</div> : null;`;
+      const issues = lintFile('test.tsx', code);
+      expect(issues.some(i => i.rule === 'no-nested-ternary')).toBe(false);
+    });
+    it('JSXを介さない純粋なネストは引き続き検出', () => {
+      const code = `const x = a ? b ? 1 : 2 : 3;`;
+      const issues = lintFile('test.tsx', code);
+      expect(issues.some(i => i.rule === 'no-nested-ternary')).toBe(true);
     });
   });
 
