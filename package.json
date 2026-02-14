@@ -1,0 +1,62 @@
+{
+  "name": "codopsy-ts",
+  "version": "1.0.0",
+  "description": "ソースコードの品質を解析するCLIツール",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "codopsy-ts": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README.ja.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "code-quality",
+    "static-analysis",
+    "cyclomatic-complexity",
+    "cognitive-complexity",
+    "linter",
+    "typescript",
+    "cli"
+  ],
+  "author": "",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/O6lvl4/codopsy-ts"
+  },
+  "homepage": "https://github.com/O6lvl4/codopsy-ts#readme",
+  "bugs": {
+    "url": "https://github.com/O6lvl4/codopsy-ts/issues"
+  },
+  "dependencies": {
+    "commander": "^14.0.3",
+    "glob": "^13.0.3",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "tsx": "^4.21.0",
+    "vitest": "^4.0.18"
+  }
+}

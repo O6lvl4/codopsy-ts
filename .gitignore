@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tgz
+self-report.*
+test-report.*
+after-fix-report.*
+.DS_Store
