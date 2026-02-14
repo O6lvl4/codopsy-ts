@@ -123,8 +123,8 @@ codopsy-ts analyze ./src --fail-on-warning
 | `no-any` | warning | Usage of `any` type |
 | `no-var` | warning | `var` declaration |
 | `eqeqeq` | warning | `==` / `!=` instead of `===` / `!==` |
-| `no-empty-function` | warning | Empty function body |
-| `no-nested-ternary` | warning | Nested ternary expression |
+| `no-empty-function` | warning | Empty function body (comment-only bodies are considered intentional) |
+| `no-nested-ternary` | warning | Nested ternary expression (JSX boundaries are excluded) |
 | `no-param-reassign` | warning | Reassignment to function parameter |
 | `no-console` | info | `console.*()` call |
 | `prefer-const` | info | `let` that is never reassigned |
@@ -240,7 +240,7 @@ npm install
 
 ```bash
 npm start -- analyze ./src        # Run locally
-npm test                          # 94 tests
+npm test                          # 99 tests
 npm run test:watch                # Watch mode
 npm run build                     # Compile to dist/
 ```

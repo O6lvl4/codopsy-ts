@@ -123,8 +123,8 @@ codopsy-ts analyze ./src --fail-on-warning
 | `no-any` | warning | `any` 型の使用 |
 | `no-var` | warning | `var` 宣言 |
 | `eqeqeq` | warning | `===` / `!==` の代わりに `==` / `!=` を使用 |
-| `no-empty-function` | warning | 空の関数 |
-| `no-nested-ternary` | warning | ネストした三項演算子 |
+| `no-empty-function` | warning | 空の関数（コメントのみの関数は意図的と見なし除外） |
+| `no-nested-ternary` | warning | ネストした三項演算子（JSX境界内は除外） |
 | `no-param-reassign` | warning | 関数パラメータへの再代入 |
 | `no-console` | info | `console.*()` の呼び出し |
 | `prefer-const` | info | 再代入されない `let` 宣言 |
@@ -240,7 +240,7 @@ npm install
 
 ```bash
 npm start -- analyze ./src        # ローカル実行
-npm test                          # 94 テスト
+npm test                          # 99 テスト
 npm run test:watch                # Watch モード
 npm run build                     # dist/ にコンパイル
 ```
