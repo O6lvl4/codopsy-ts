@@ -6,8 +6,9 @@
 
 <p align="center">
   TypeScript & JavaScript の品質を AST レベルで解析する CLI ツール。<br>
-  <b>循環的複雑度</b>と<b>認知的複雑度</b>を計測し、<b>13 の lint ルール</b>を適用。<br>
-  <b>JSON / HTML / SARIF</b> でレポートを出力 &mdash; コマンド 1 つで完結。
+  <b>品質スコア</b>（A&ndash;F）、<b>循環的 &amp; 認知的複雑度</b>、<b>13 の lint ルール</b>、<br>
+  <b>ベースライン追跡</b>、<b>ホットスポット検知</b>、<b>プラグイン対応</b><br>
+  &mdash; コマンド 1 つで完結。
 </p>
 
 <p align="center">
@@ -18,11 +19,28 @@
 
 ## なぜ Codopsy？
 
+| | ESLint + sonarjs | Biome | oxlint | **Codopsy** |
+|---|---|---|---|---|
+| ゼロコンフィグ | - | 部分的 | 部分的 | **yes** |
+| 循環的複雑度 | plugin | - | - | **組み込み** |
+| 認知的複雑度 | plugin | - | - | **組み込み** |
+| 品質スコア (A&ndash;F) | - | - | - | **組み込み** |
+| ベースライン / CI ゲート | - | - | - | **組み込み** |
+| ホットスポット検知 | - | - | - | **組み込み** |
+| SARIF 出力 | plugin | - | - | **組み込み** |
+| プラグインシステム | yes | - | - | **yes** |
+| プログラマティック API | - | - | - | **yes** |
+
 - **設定不要** &mdash; インストールして即実行。`.eslintrc` の迷路は不要
+- **品質スコア** &mdash; ファイル・プロジェクト単位で A&ndash;F グレード（0&ndash;100 スケール）
 - **2 つの複雑度指標** &mdash; 循環的複雑度 *と* 認知的複雑度（SonarSource 方式）
+- **ベースライン追跡** &mdash; スナップショットを保存し、品質劣化で CI を落とす
+- **ホットスポット検知** &mdash; 複雑度が高く変更頻度も高いファイルを特定
+- **プラグインシステム** &mdash; JS/TS モジュールでカスタムルールを追加
 - **SARIF 出力** &mdash; GitHub Code Scanning に直接連携
 - **Git 連携** &mdash; `--diff` で変更ファイルだけを解析
-- **自己解析クリア** &mdash; Codopsy 自身が自分の解析を 0 warnings でパス
+- **プログラマティック API** &mdash; `import { analyze } from 'codopsy-ts'` で CLI を起動せず利用可能
+- **自己解析クリア** &mdash; Codopsy 自身がグレード **A (99/100)** をパス
 
 ---
 
@@ -31,21 +49,26 @@
 ```bash
 npm install -g codopsy-ts
 
+# 設定ファイル生成（任意）
+codopsy-ts init
+
+# 解析
 codopsy-ts analyze ./src
 ```
 
 ```
 Analyzing ./src ...
-Found 20 source file(s).
+Found 28 source file(s).
 
 === Analysis Summary ===
-  Files analyzed: 20
-  Total issues:   0
+  Quality Score:  A (99/100)
+  Files analyzed: 28
+  Total issues:   29
     Error:   0
     Warning: 0
-    Info:    0
-  Avg complexity: 2.9
-  Max complexity: 10 (checkMaxComplexity in src/index.ts)
+    Info:    29
+  Avg complexity: 2.8
+  Max complexity: 10 (checkMaxComplexity in src/analyze.ts)
 
 Report written to: codopsy-report.json
 ```
@@ -61,6 +84,8 @@ Report written to: codopsy-report.json
 ---
 
 ## CLI リファレンス
+
+### `codopsy-ts analyze`
 
 ```
 codopsy-ts analyze [options] <dir>
@@ -78,6 +103,18 @@ codopsy-ts analyze [options] <dir>
 | `-v, --verbose` | ファイルごとの解析結果を表示 | &mdash; |
 | `-q, --quiet` | サマリーのみ表示 | &mdash; |
 | `--no-color` | カラー出力を無効化 | &mdash; |
+| `--save-baseline` | 現在の結果をベースラインとして保存 | &mdash; |
+| `--baseline-path <path>` | ベースラインファイルのパス | `.codopsy-baseline.json` |
+| `--no-degradation` | ベースラインから劣化していたら exit 1 | &mdash; |
+| `--hotspots` | ホットスポット分析を表示（複雑度 x 変更頻度） | &mdash; |
+
+### `codopsy-ts init`
+
+```
+codopsy-ts init [dir] [--force]
+```
+
+全ルールが設定された `.codopsyrc.json` を生成します。`--force` で上書き。
 
 ### 使用例
 
@@ -96,9 +133,79 @@ codopsy-ts analyze ./src --diff origin/main
 
 # CI で warning があれば失敗させる
 codopsy-ts analyze ./src --fail-on-warning
+
+# ベースラインを保存し、劣化があれば失敗させる
+codopsy-ts analyze ./src --save-baseline
+codopsy-ts analyze ./src --no-degradation
+
+# ホットスポットを表示（複雑度 x 変更頻度）
+codopsy-ts analyze ./src --hotspots
 ```
 
 > `-o -` を使うと進捗メッセージは stderr に出力され、stdout には純粋なレポートデータだけが流れます。
+
+---
+
+## 品質スコア
+
+ファイルごと・プロジェクト全体に **0&ndash;100** のスコアと **A&ndash;F** のグレードが付与されます。
+
+| グレード | スコア |
+|---|---|
+| **A** | 90&ndash;100 |
+| **B** | 75&ndash;89 |
+| **C** | 60&ndash;74 |
+| **D** | 40&ndash;59 |
+| **F** | 0&ndash;39 |
+
+スコアは 3 つのサブスコアで構成されます：
+
+- **複雑度** (0&ndash;40) &mdash; cyclomatic > 10、cognitive > 15 でペナルティ
+- **課題** (0&ndash;40) &mdash; error: -8、warning: -3、info: -1
+- **構造** (0&ndash;20) &mdash; 長すぎるファイル、深いネスト、多すぎるパラメータにペナルティ
+
+---
+
+## ベースライン追跡
+
+品質メトリクスのスナップショットを保存し、劣化があれば CI を失敗させます。
+
+```bash
+# クリーンな実行後にベースラインを保存
+codopsy-ts analyze ./src --save-baseline
+
+# 以降の実行で比較し、劣化があれば失敗
+codopsy-ts analyze ./src --no-degradation
+```
+
+ベースラインファイル（`.codopsy-baseline.json`）にはファイルごとの課題数・複雑度・スコアが保存されます。比較結果：
+
+```
+=== Baseline Comparison ===
+  Status: IMPROVED
+  Score:  B → A (↑ +5)
+  Issues: -3
+  Improved: src/index.ts, src/utils.ts
+```
+
+---
+
+## ホットスポット検知
+
+**複雑度** と **git の変更頻度** を組み合わせ、最もリスクの高いファイルを特定します。
+
+```bash
+codopsy-ts analyze ./src --hotspots
+```
+
+```
+=== Hotspot Analysis (last 6 months) ===
+  HIGH   src/analyzer/linter.ts (42 commits, 3 authors, complexity: 9)
+  MEDIUM src/index.ts (28 commits, 2 authors, complexity: 7)
+  LOW    src/utils/file.ts (5 commits, 1 authors, complexity: 4)
+```
+
+リスクレベル: **HIGH**（スコア > 100）、**MEDIUM**（スコア > 30）、**LOW**（スコア <= 30）
 
 ---
 
@@ -124,7 +231,7 @@ codopsy-ts analyze ./src --fail-on-warning
 | `no-var` | warning | `var` 宣言 |
 | `eqeqeq` | warning | `===` / `!==` の代わりに `==` / `!=` を使用 |
 | `no-empty-function` | warning | 空の関数（コメントのみの関数は意図的と見なし除外） |
-| `no-nested-ternary` | warning | ネストした三項演算子（JSX境界内は除外） |
+| `no-nested-ternary` | warning | ネストした三項演算子（JSX 境界内は除外） |
 | `no-param-reassign` | warning | 関数パラメータへの再代入 |
 | `no-console` | info | `console.*()` の呼び出し |
 | `prefer-const` | info | 再代入されない `let` 宣言 |
@@ -133,7 +240,7 @@ codopsy-ts analyze ./src --fail-on-warning
 
 ## 設定
 
-`.codopsyrc.json` をプロジェクトルート（または任意の親ディレクトリ）に配置します。上方向に自動探索されます。
+`codopsy-ts init` で設定ファイルを生成するか、`.codopsyrc.json` をプロジェクトルートに手動作成します（上方向に自動探索）。
 
 ```json
 {
@@ -143,7 +250,8 @@ codopsy-ts analyze ./src --fail-on-warning
     "max-lines": { "severity": "warning", "max": 500 },
     "max-complexity": { "severity": "error", "max": 15 },
     "max-cognitive-complexity": { "severity": "warning", "max": 20 }
-  }
+  },
+  "plugins": ["./my-plugin.js"]
 }
 ```
 
@@ -152,6 +260,99 @@ codopsy-ts analyze ./src --fail-on-warning
 | `"error"` / `"warning"` / `"info"` | 重要度を変更 |
 | `false` | ルールを無効化 |
 | `{ "severity": "...", "max": N }` | 重要度と閾値を指定 |
+
+---
+
+## プラグインシステム
+
+JS/TS モジュールでカスタムルールを作成できます。プラグインは `rules` 配列をエクスポートします：
+
+```js
+// my-plugin.js
+export default {
+  rules: [
+    {
+      id: 'no-todo-comments',
+      description: 'Disallow TODO comments',
+      defaultSeverity: 'info',
+      check(sourceFile, filePath, issues) {
+        const text = sourceFile.getFullText();
+        const regex = /\/\/\s*TODO/gi;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          const { line } = sourceFile.getLineAndCharacterOfPosition(match.index);
+          issues.push({
+            file: filePath,
+            line: line + 1,
+            column: 1,
+            severity: 'info',
+            rule: 'no-todo-comments',
+            message: 'TODO comment found',
+          });
+        }
+      },
+    },
+  ],
+};
+```
+
+`.codopsyrc.json` に登録：
+
+```json
+{
+  "plugins": ["./my-plugin.js"],
+  "rules": {
+    "no-todo-comments": "warning"
+  }
+}
+```
+
+プラグインルールも組み込みルールと同様に重要度の変更や無効化が可能です。
+
+---
+
+## プログラマティック API
+
+CLI を起動せずライブラリとして使用できます：
+
+```ts
+import { analyze } from 'codopsy-ts';
+
+const result = await analyze({ targetDir: './src' });
+console.log(result.score);  // { overall: 99, grade: 'A', distribution: { A: 25, B: 3, ... } }
+console.log(result.summary.totalIssues);
+```
+
+### エクスポート一覧
+
+```ts
+import {
+  // ハイレベル
+  analyze,
+
+  // ローレベル
+  analyzeFile,
+  analyzeComplexity,
+  lintFile,
+
+  // 設定
+  loadConfig,
+
+  // レポート
+  formatReport,
+  generateReport,
+
+  // スコアリング
+  calculateFileScore,
+  calculateProjectScore,
+
+  // ファイル
+  findSourceFiles,
+
+  // プラグイン
+  loadPlugins,
+} from 'codopsy-ts';
+```
 
 ---
 
@@ -166,27 +367,33 @@ codopsy-ts analyze ./src --fail-on-warning
 
 ```json
 {
-  "timestamp": "2026-02-14T12:00:00.000Z",
+  "timestamp": "2026-02-17T12:00:00.000Z",
   "targetDir": "./src",
+  "score": {
+    "overall": 99,
+    "grade": "A",
+    "distribution": { "A": 25, "B": 3 }
+  },
   "files": [
     {
-      "file": "src/index.ts",
+      "file": "src/analyze.ts",
       "complexity": {
         "cyclomatic": 10,
         "cognitive": 8,
         "functions": [
-          { "name": "analyzeAction", "line": 275, "complexity": 9, "cognitiveComplexity": 4 }
+          { "name": "checkMaxComplexity", "line": 74, "complexity": 10, "cognitiveComplexity": 8 }
         ]
       },
-      "issues": []
+      "issues": [],
+      "score": { "score": 95, "grade": "A" }
     }
   ],
   "summary": {
-    "totalFiles": 20,
-    "totalIssues": 0,
-    "issuesBySeverity": { "error": 0, "warning": 0, "info": 0 },
-    "averageComplexity": 2.9,
-    "maxComplexity": { "file": "src/index.ts", "function": "checkMaxComplexity", "complexity": 10 }
+    "totalFiles": 28,
+    "totalIssues": 29,
+    "issuesBySeverity": { "error": 0, "warning": 0, "info": 29 },
+    "averageComplexity": 2.8,
+    "maxComplexity": { "file": "src/analyze.ts", "function": "checkMaxComplexity", "complexity": 10 }
   }
 }
 ```
@@ -195,7 +402,7 @@ codopsy-ts analyze ./src --fail-on-warning
 
 ### HTML
 
-サマリーカード、ファイルごとの複雑度テーブル、Issue 一覧を含むビジュアルレポート。ブラウザで開けます。
+品質スコアカード、グレード分布、ファイルごとの複雑度テーブル、Issue 一覧を含むビジュアルレポート。ブラウザで開けます。
 
 ### SARIF
 
@@ -204,6 +411,39 @@ codopsy-ts analyze ./src --fail-on-warning
 ---
 
 ## GitHub Actions
+
+### Action を使う方法（推奨）
+
+```yaml
+name: Codopsy
+on: [push, pull_request]
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: O6lvl4/codopsy-ts@v1
+        with:
+          directory: ./src
+```
+
+SARIF は自動的に **Security** タブにアップロードされます。
+
+### Action の入力パラメータ
+
+| パラメータ | 説明 | デフォルト |
+|---|---|---|
+| `directory` | 解析対象ディレクトリ | `./src` |
+| `format` | 出力形式 | `sarif` |
+| `max-complexity` | 循環的複雑度の閾値 | `10` |
+| `max-cognitive-complexity` | 認知的複雑度の閾値 | `15` |
+| `fail-on-warning` | warning で失敗 | `false` |
+| `fail-on-error` | error で失敗 | `true` |
+| `upload-sarif` | Code Scanning に SARIF アップロード | `true` |
+
+### 手動セットアップ
 
 ```yaml
 name: Codopsy
@@ -226,8 +466,6 @@ jobs:
           sarif_file: results.sarif
 ```
 
-結果は **Security** タブにアップロードされ、PR 上でインラインに Issue が表示されます。
-
 ---
 
 ## 開発
@@ -240,18 +478,18 @@ npm install
 
 ```bash
 npm start -- analyze ./src        # ローカル実行
-npm test                          # 99 テスト
+npm test                          # 138 テスト
 npm run test:watch                # Watch モード
 npm run build                     # dist/ にコンパイル
 ```
 
 ### 自己解析
 
-Codopsy は自分自身の解析を 0 warnings でパスします：
+Codopsy は自分自身をグレード A、0 warnings で解析パスします：
 
 ```bash
 npm start -- analyze ./src --verbose
-# 20 files, 0 errors, 0 warnings
+# 28 files, Quality Score: A (99/100), 0 warnings
 ```
 
 ---

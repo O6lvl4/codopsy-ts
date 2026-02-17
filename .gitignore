@@ -4,4 +4,6 @@ dist/
 self-report.*
 test-report.*
 after-fix-report.*
+codopsy-report.*
+.codopsy-baseline.json
 .DS_Store

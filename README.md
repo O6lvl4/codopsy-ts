@@ -6,8 +6,9 @@
 
 <p align="center">
   AST-level code quality analyzer for TypeScript & JavaScript.<br>
-  Measures <b>cyclomatic</b> and <b>cognitive</b> complexity, enforces <b>13 lint rules</b>,<br>
-  and outputs <b>JSON / HTML / SARIF</b> &mdash; all from a single command.
+  <b>Quality scoring</b> (A&ndash;F), <b>cyclomatic &amp; cognitive complexity</b>, <b>13 lint rules</b>,<br>
+  <b>baseline tracking</b>, <b>hotspot detection</b>, and <b>plugin support</b><br>
+  &mdash; all from a single command.
 </p>
 
 <p align="center">
@@ -18,11 +19,28 @@
 
 ## Why Codopsy?
 
+| | ESLint + sonarjs | Biome | oxlint | **Codopsy** |
+|---|---|---|---|---|
+| Zero config | - | partial | partial | **yes** |
+| Cyclomatic complexity | plugin | - | - | **built-in** |
+| Cognitive complexity | plugin | - | - | **built-in** |
+| Quality score (A&ndash;F) | - | - | - | **built-in** |
+| Baseline / CI gate | - | - | - | **built-in** |
+| Hotspot detection | - | - | - | **built-in** |
+| SARIF output | plugin | - | - | **built-in** |
+| Plugin system | yes | - | - | **yes** |
+| Programmatic API | - | - | - | **yes** |
+
 - **Zero config** &mdash; works out of the box, no `.eslintrc` jungle
+- **Quality score** &mdash; A&ndash;F grade per file and project (0&ndash;100 scale)
 - **Two complexity metrics** &mdash; cyclomatic *and* cognitive (SonarSource method)
+- **Baseline tracking** &mdash; save a snapshot, fail CI if quality degrades
+- **Hotspot detection** &mdash; find files with high complexity *and* high git churn
+- **Plugin system** &mdash; add custom rules via simple JS/TS modules
 - **SARIF output** &mdash; plug directly into GitHub Code Scanning
 - **Git-aware** &mdash; `--diff` to analyze only changed files
-- **Self-dogfooding** &mdash; Codopsy passes its own analysis with 0 warnings
+- **Programmatic API** &mdash; `import { analyze } from 'codopsy-ts'` without triggering CLI
+- **Self-dogfooding** &mdash; Codopsy passes its own analysis with grade **A (99/100)**
 
 ---
 
@@ -31,21 +49,26 @@
 ```bash
 npm install -g codopsy-ts
 
+# Generate config (optional)
+codopsy-ts init
+
+# Analyze
 codopsy-ts analyze ./src
 ```
 
 ```
 Analyzing ./src ...
-Found 20 source file(s).
+Found 28 source file(s).
 
 === Analysis Summary ===
-  Files analyzed: 20
-  Total issues:   0
+  Quality Score:  A (99/100)
+  Files analyzed: 28
+  Total issues:   29
     Error:   0
     Warning: 0
-    Info:    0
-  Avg complexity: 2.9
-  Max complexity: 10 (checkMaxComplexity in src/index.ts)
+    Info:    29
+  Avg complexity: 2.8
+  Max complexity: 10 (checkMaxComplexity in src/analyze.ts)
 
 Report written to: codopsy-report.json
 ```
@@ -61,6 +84,8 @@ Report written to: codopsy-report.json
 ---
 
 ## CLI Reference
+
+### `codopsy-ts analyze`
 
 ```
 codopsy-ts analyze [options] <dir>
@@ -78,6 +103,18 @@ codopsy-ts analyze [options] <dir>
 | `-v, --verbose` | Show per-file results | &mdash; |
 | `-q, --quiet` | Summary only | &mdash; |
 | `--no-color` | Disable colors | &mdash; |
+| `--save-baseline` | Save current results as baseline | &mdash; |
+| `--baseline-path <path>` | Path to baseline file | `.codopsy-baseline.json` |
+| `--no-degradation` | Exit 1 if quality degrades vs baseline | &mdash; |
+| `--hotspots` | Show hotspot analysis (complexity x churn) | &mdash; |
+
+### `codopsy-ts init`
+
+```
+codopsy-ts init [dir] [--force]
+```
+
+Generate a `.codopsyrc.json` with all rules configured. Use `--force` to overwrite.
 
 ### Examples
 
@@ -96,9 +133,79 @@ codopsy-ts analyze ./src --diff origin/main
 
 # Gate CI on warnings
 codopsy-ts analyze ./src --fail-on-warning
+
+# Save baseline and fail on degradation
+codopsy-ts analyze ./src --save-baseline
+codopsy-ts analyze ./src --no-degradation
+
+# Show hotspots (high complexity + high churn)
+codopsy-ts analyze ./src --hotspots
 ```
 
 > When using `-o -`, progress messages go to stderr so stdout is pure report data.
+
+---
+
+## Quality Score
+
+Every file and the project as a whole receive a score from **0&ndash;100**, mapped to an **A&ndash;F** grade.
+
+| Grade | Score |
+|---|---|
+| **A** | 90&ndash;100 |
+| **B** | 75&ndash;89 |
+| **C** | 60&ndash;74 |
+| **D** | 40&ndash;59 |
+| **F** | 0&ndash;39 |
+
+The score is composed of three sub-scores:
+
+- **Complexity** (0&ndash;40) &mdash; penalties for cyclomatic > 10, cognitive > 15
+- **Issues** (0&ndash;40) &mdash; penalties per error (-8), warning (-3), info (-1)
+- **Structure** (0&ndash;20) &mdash; penalties for long files, deep nesting, many params
+
+---
+
+## Baseline Tracking
+
+Save a snapshot of your quality metrics, then fail CI if things get worse.
+
+```bash
+# Save baseline after a clean run
+codopsy-ts analyze ./src --save-baseline
+
+# On subsequent runs, compare and fail if degraded
+codopsy-ts analyze ./src --no-degradation
+```
+
+The baseline file (`.codopsy-baseline.json`) stores per-file issue counts, complexity, and score. The comparison output shows:
+
+```
+=== Baseline Comparison ===
+  Status: IMPROVED
+  Score:  B → A (↑ +5)
+  Issues: -3
+  Improved: src/index.ts, src/utils.ts
+```
+
+---
+
+## Hotspot Detection
+
+Combine **complexity** with **git churn** to find the riskiest files in your codebase.
+
+```bash
+codopsy-ts analyze ./src --hotspots
+```
+
+```
+=== Hotspot Analysis (last 6 months) ===
+  HIGH   src/analyzer/linter.ts (42 commits, 3 authors, complexity: 9)
+  MEDIUM src/index.ts (28 commits, 2 authors, complexity: 7)
+  LOW    src/utils/file.ts (5 commits, 1 authors, complexity: 4)
+```
+
+Risk levels: **HIGH** (score > 100), **MEDIUM** (score > 30), **LOW** (score <= 30).
 
 ---
 
@@ -133,7 +240,7 @@ codopsy-ts analyze ./src --fail-on-warning
 
 ## Configuration
 
-Place `.codopsyrc.json` in your project root (or any parent directory &mdash; it's searched upward).
+Generate a config file with `codopsy-ts init`, or create `.codopsyrc.json` manually in your project root (searched upward).
 
 ```json
 {
@@ -143,7 +250,8 @@ Place `.codopsyrc.json` in your project root (or any parent directory &mdash; it
     "max-lines": { "severity": "warning", "max": 500 },
     "max-complexity": { "severity": "error", "max": 15 },
     "max-cognitive-complexity": { "severity": "warning", "max": 20 }
-  }
+  },
+  "plugins": ["./my-plugin.js"]
 }
 ```
 
@@ -152,6 +260,99 @@ Place `.codopsyrc.json` in your project root (or any parent directory &mdash; it
 | `"error"` / `"warning"` / `"info"` | Change severity |
 | `false` | Disable the rule |
 | `{ "severity": "...", "max": N }` | Set severity + threshold |
+
+---
+
+## Plugin System
+
+Create custom rules as JS/TS modules. A plugin exports a `rules` array:
+
+```js
+// my-plugin.js
+export default {
+  rules: [
+    {
+      id: 'no-todo-comments',
+      description: 'Disallow TODO comments',
+      defaultSeverity: 'info',
+      check(sourceFile, filePath, issues) {
+        const text = sourceFile.getFullText();
+        const regex = /\/\/\s*TODO/gi;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          const { line } = sourceFile.getLineAndCharacterOfPosition(match.index);
+          issues.push({
+            file: filePath,
+            line: line + 1,
+            column: 1,
+            severity: 'info',
+            rule: 'no-todo-comments',
+            message: 'TODO comment found',
+          });
+        }
+      },
+    },
+  ],
+};
+```
+
+Register in `.codopsyrc.json`:
+
+```json
+{
+  "plugins": ["./my-plugin.js"],
+  "rules": {
+    "no-todo-comments": "warning"
+  }
+}
+```
+
+Plugin rules can be configured (change severity or disable) just like built-in rules.
+
+---
+
+## Programmatic API
+
+Use Codopsy as a library without triggering the CLI:
+
+```ts
+import { analyze } from 'codopsy-ts';
+
+const result = await analyze({ targetDir: './src' });
+console.log(result.score);  // { overall: 99, grade: 'A', distribution: { A: 25, B: 3, ... } }
+console.log(result.summary.totalIssues);
+```
+
+### Available exports
+
+```ts
+import {
+  // High-level
+  analyze,
+
+  // Low-level
+  analyzeFile,
+  analyzeComplexity,
+  lintFile,
+
+  // Config
+  loadConfig,
+
+  // Report
+  formatReport,
+  generateReport,
+
+  // Scoring
+  calculateFileScore,
+  calculateProjectScore,
+
+  // Files
+  findSourceFiles,
+
+  // Plugins
+  loadPlugins,
+} from 'codopsy-ts';
+```
 
 ---
 
@@ -166,27 +367,33 @@ Machine-readable analysis data. Pipe to `jq`, feed into dashboards, or post-proc
 
 ```json
 {
-  "timestamp": "2026-02-14T12:00:00.000Z",
+  "timestamp": "2026-02-17T12:00:00.000Z",
   "targetDir": "./src",
+  "score": {
+    "overall": 99,
+    "grade": "A",
+    "distribution": { "A": 25, "B": 3 }
+  },
   "files": [
     {
-      "file": "src/index.ts",
+      "file": "src/analyze.ts",
       "complexity": {
         "cyclomatic": 10,
         "cognitive": 8,
         "functions": [
-          { "name": "analyzeAction", "line": 275, "complexity": 9, "cognitiveComplexity": 4 }
+          { "name": "checkMaxComplexity", "line": 74, "complexity": 10, "cognitiveComplexity": 8 }
         ]
       },
-      "issues": []
+      "issues": [],
+      "score": { "score": 95, "grade": "A" }
     }
   ],
   "summary": {
-    "totalFiles": 20,
-    "totalIssues": 0,
-    "issuesBySeverity": { "error": 0, "warning": 0, "info": 0 },
-    "averageComplexity": 2.9,
-    "maxComplexity": { "file": "src/index.ts", "function": "checkMaxComplexity", "complexity": 10 }
+    "totalFiles": 28,
+    "totalIssues": 29,
+    "issuesBySeverity": { "error": 0, "warning": 0, "info": 29 },
+    "averageComplexity": 2.8,
+    "maxComplexity": { "file": "src/analyze.ts", "function": "checkMaxComplexity", "complexity": 10 }
   }
 }
 ```
@@ -195,7 +402,7 @@ Machine-readable analysis data. Pipe to `jq`, feed into dashboards, or post-proc
 
 ### HTML
 
-Visual report with summary cards, per-file complexity breakdown, and issue listings. Open in any browser.
+Visual report with quality score card, grade distribution, per-file complexity breakdown, and issue listings. Open in any browser.
 
 ### SARIF
 
@@ -204,6 +411,39 @@ Visual report with summary cards, per-file complexity breakdown, and issue listi
 ---
 
 ## GitHub Actions
+
+### Using the Action (recommended)
+
+```yaml
+name: Codopsy
+on: [push, pull_request]
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: O6lvl4/codopsy-ts@v1
+        with:
+          directory: ./src
+```
+
+SARIF results are automatically uploaded to the **Security** tab.
+
+### Action inputs
+
+| Input | Description | Default |
+|---|---|---|
+| `directory` | Directory to analyze | `./src` |
+| `format` | Output format | `sarif` |
+| `max-complexity` | Cyclomatic threshold | `10` |
+| `max-cognitive-complexity` | Cognitive threshold | `15` |
+| `fail-on-warning` | Fail on warnings | `false` |
+| `fail-on-error` | Fail on errors | `true` |
+| `upload-sarif` | Upload SARIF to Code Scanning | `true` |
+
+### Manual setup
 
 ```yaml
 name: Codopsy
@@ -226,8 +466,6 @@ jobs:
           sarif_file: results.sarif
 ```
 
-This uploads results to the **Security** tab, showing issues inline on PRs.
-
 ---
 
 ## Development
@@ -240,18 +478,18 @@ npm install
 
 ```bash
 npm start -- analyze ./src        # Run locally
-npm test                          # 99 tests
+npm test                          # 138 tests
 npm run test:watch                # Watch mode
 npm run build                     # Compile to dist/
 ```
 
 ### Self-analysis
 
-Codopsy analyzes itself with 0 warnings:
+Codopsy analyzes itself with grade A and 0 warnings:
 
 ```bash
 npm start -- analyze ./src --verbose
-# 20 files, 0 errors, 0 warnings
+# 28 files, Quality Score: A (99/100), 0 warnings
 ```
 
 ---

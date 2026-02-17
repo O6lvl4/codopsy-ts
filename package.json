@@ -21,7 +21,8 @@
     "dist",
     "README.md",
     "README.ja.md",
-    "LICENSE"
+    "LICENSE",
+    "action.yml"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -38,8 +39,11 @@
     "static-analysis",
     "cyclomatic-complexity",
     "cognitive-complexity",
+    "quality-score",
     "linter",
     "typescript",
+    "sarif",
+    "github-action",
     "cli"
   ],
   "author": "",
