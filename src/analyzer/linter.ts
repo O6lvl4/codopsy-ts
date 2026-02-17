@@ -6,6 +6,7 @@ import { CodopsyConfig } from '../config.js';
 import { checkPreferConst } from './prefer-const.js';
 import { checkNoParamReassign } from './rules/no-param-reassign.js';
 import { checkMaxLines, checkMaxDepth, checkMaxParams } from './rules/threshold-rules.js';
+import type { RuleDefinition } from '../plugin.js';
 
 function checkNoAny(
   sourceFile: ts.SourceFile,
@@ -235,12 +236,16 @@ function getThresholdOpts(ruleValue: unknown): { severity?: Severity; max?: numb
   return {};
 }
 
-function runChecks(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  issues: Issue[],
-  rules: CodopsyConfig['rules'],
-): void {
+interface RunChecksContext {
+  sourceFile: ts.SourceFile;
+  filePath: string;
+  issues: Issue[];
+  rules: CodopsyConfig['rules'];
+  externalRules?: RuleDefinition[];
+}
+
+function runChecks(ctx: RunChecksContext): void {
+  const { sourceFile, filePath, issues, rules, externalRules } = ctx;
   for (const [name, check] of SIMPLE_RULES) {
     if (rules?.[name] !== false) {
       check(sourceFile, filePath, issues, getRuleSeverity(rules?.[name]));
@@ -258,9 +263,23 @@ function runChecks(
   if (rules?.['max-params'] !== false) {
     checkMaxParams(sourceFile, filePath, issues, getThresholdOpts(rules?.['max-params']));
   }
+
+  if (externalRules) {
+    for (const rule of externalRules) {
+      if (rules?.[rule.id] !== false) {
+        const severity = getRuleSeverity(rules?.[rule.id]) ?? rule.defaultSeverity;
+        rule.check(sourceFile, filePath, issues, severity);
+      }
+    }
+  }
 }
 
-export function lintFile(filePath: string, sourceCode: string, config?: CodopsyConfig): Issue[] {
+export function lintFile(
+  filePath: string,
+  sourceCode: string,
+  config?: CodopsyConfig,
+  externalRules?: RuleDefinition[],
+): Issue[] {
   const sourceFile = ts.createSourceFile(
     filePath,
     sourceCode,
@@ -270,6 +289,6 @@ export function lintFile(filePath: string, sourceCode: string, config?: CodopsyC
   );
 
   const issues: Issue[] = [];
-  runChecks(sourceFile, filePath, issues, config?.rules);
+  runChecks({ sourceFile, filePath, issues, rules: config?.rules, externalRules });
   return issues;
 }

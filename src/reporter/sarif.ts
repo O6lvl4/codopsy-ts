@@ -103,7 +103,7 @@ function collectRules(result: AnalysisResult): Array<{
     const desc = RULE_DESCRIPTIONS[ruleId];
     return {
       id: ruleId,
-      shortDescription: { text: desc?.description ?? ruleId },
+      shortDescription: { text: desc?.description ?? ruleId.replace(/-/g, ' ') },
       defaultConfiguration: { level: desc?.level ?? 'warning' },
     };
   });

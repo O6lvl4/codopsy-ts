@@ -52,3 +52,52 @@ export function getChangedFiles(dir: string, base: string): string[] {
     return [];
   }
 }
+
+/**
+ * Get per-file commit and author counts within a time period.
+ * Returns a map of relative file path -> { commits, authors }.
+ */
+export function getFileChurnStats(
+  dir: string,
+  since: string,
+): Map<string, { commits: number; authors: number }> {
+  const stats = new Map<string, { commits: Set<string>; authors: Set<string> }>();
+
+  try {
+    const output = execSync(
+      `git log --since="${since}" --format="%H %aN" --name-only`,
+      { cwd: dir, stdio: 'pipe', encoding: 'utf-8' },
+    );
+
+    let currentHash = '';
+    let currentAuthor = '';
+
+    for (const line of output.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed === '') continue;
+
+      const headerMatch = trimmed.match(/^([a-f0-9]{40}) (.+)$/);
+      if (headerMatch) {
+        currentHash = headerMatch[1];
+        currentAuthor = headerMatch[2];
+        continue;
+      }
+
+      // This is a file path
+      if (!stats.has(trimmed)) {
+        stats.set(trimmed, { commits: new Set(), authors: new Set() });
+      }
+      const entry = stats.get(trimmed)!;
+      entry.commits.add(currentHash);
+      entry.authors.add(currentAuthor);
+    }
+  } catch {
+    return new Map();
+  }
+
+  const result = new Map<string, { commits: number; authors: number }>();
+  for (const [file, data] of stats) {
+    result.set(file, { commits: data.commits.size, authors: data.authors.size });
+  }
+  return result;
+}

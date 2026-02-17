@@ -5,6 +5,7 @@ import * as os from 'os';
 export type RuleSeverity = 'warning' | 'info' | 'error';
 
 export interface CodopsyConfig {
+  plugins?: string[];
   rules?: {
     'no-any'?: false | RuleSeverity;
     'no-console'?: false | RuleSeverity;
@@ -19,6 +20,7 @@ export interface CodopsyConfig {
     'max-depth'?: false | { severity?: RuleSeverity; max?: number };
     'max-params'?: false | { severity?: RuleSeverity; max?: number };
     'no-param-reassign'?: false | RuleSeverity;
+    [key: string]: false | RuleSeverity | { severity?: RuleSeverity; max?: number } | undefined;
   };
 }
 

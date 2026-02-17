@@ -128,6 +128,34 @@ function buildFileSection(analysis: FileAnalysis): string {
     </details>`;
 }
 
+function gradeColorHtml(grade: string): string {
+  switch (grade) {
+    case 'A': return '#27ae60';
+    case 'B': return '#2ecc71';
+    case 'C': return '#f39c12';
+    case 'D': return '#e67e22';
+    case 'F': return '#e74c3c';
+    default: return '#999';
+  }
+}
+
+function buildScoreCard(result: AnalysisResult): string {
+  if (!result.score) return '';
+  const { overall, grade, distribution } = result.score;
+  const distEntries = Object.entries(distribution)
+    .filter(([, count]) => (count as number) > 0)
+    .map(([g, count]) => `<span style="color: ${gradeColorHtml(g)}; font-weight: bold">${g}: ${count}</span>`)
+    .join(' &nbsp; ');
+
+  return `
+        <div class="summary-card" style="border-top: 4px solid ${gradeColorHtml(grade)}">
+          <div class="label">Quality Score</div>
+          <div class="value" style="color: ${gradeColorHtml(grade)}; font-size: 2.5rem">${grade}</div>
+          <div class="detail">${overall} / 100</div>
+          <div class="detail" style="margin-top: 4px">${distEntries}</div>
+        </div>`;
+}
+
 function buildHtml(result: AnalysisResult): string {
   const { summary } = result;
   const maxComplexityInfo = summary.maxComplexity
@@ -159,7 +187,7 @@ function buildHtml(result: AnalysisResult): string {
   <div class="container">
     <section>
       <h2>Summary</h2>
-      <div class="summary-grid">
+      <div class="summary-grid">${buildScoreCard(result)}
         <div class="summary-card">
           <div class="label">Files Analyzed</div>
           <div class="value">${summary.totalFiles}</div>

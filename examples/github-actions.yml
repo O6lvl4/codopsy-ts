@@ -1,3 +1,4 @@
+# Option 1: Using the Codopsy GitHub Action (recommended)
 name: Codopsy
 on:
   push:
@@ -10,13 +11,26 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: O6lvl4/codopsy-ts@v1
         with:
-          node-version: '20'
-      - run: npm install -g codopsy-ts
-      - run: codopsy-ts analyze ./src --format sarif --output results.sarif
-      - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: results.sarif
+          directory: ./src
+
+# Option 2: Manual setup (if you need more control)
+# name: Codopsy
+# on: [push, pull_request]
+# jobs:
+#   analyze:
+#     runs-on: ubuntu-latest
+#     permissions:
+#       security-events: write
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+#       - run: npm install -g codopsy-ts
+#       - run: codopsy-ts analyze ./src --format sarif --output results.sarif
+#       - uses: github/codeql-action/upload-sarif@v3
+#         if: always()
+#         with:
+#           sarif_file: results.sarif

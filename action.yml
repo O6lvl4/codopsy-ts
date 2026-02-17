@@ -1,0 +1,79 @@
+name: 'Codopsy Code Quality'
+description: 'AST-level code quality analysis for TypeScript & JavaScript. Quality scores, complexity metrics, and 13 lint rules.'
+branding:
+  icon: 'search'
+  color: 'blue'
+
+inputs:
+  directory:
+    description: 'Directory to analyze'
+    required: false
+    default: './src'
+  format:
+    description: 'Output format (json, html, sarif)'
+    required: false
+    default: 'sarif'
+  max-complexity:
+    description: 'Cyclomatic complexity threshold'
+    required: false
+    default: '10'
+  max-cognitive-complexity:
+    description: 'Cognitive complexity threshold'
+    required: false
+    default: '15'
+  fail-on-warning:
+    description: 'Fail if warnings found'
+    required: false
+    default: 'false'
+  fail-on-error:
+    description: 'Fail if errors found'
+    required: false
+    default: 'true'
+  upload-sarif:
+    description: 'Upload SARIF results to GitHub Code Scanning'
+    required: false
+    default: 'true'
+
+outputs:
+  report-file:
+    description: 'Path to the generated report file'
+    value: ${{ steps.analyze.outputs.report-file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install codopsy-ts
+      shell: bash
+      run: npm install -g codopsy-ts
+
+    - name: Run analysis
+      id: analyze
+      shell: bash
+      run: |
+        REPORT_FILE="codopsy-results.${{ inputs.format }}"
+        ARGS="${{ inputs.directory }}"
+        ARGS="$ARGS --format ${{ inputs.format }}"
+        ARGS="$ARGS --output $REPORT_FILE"
+        ARGS="$ARGS --max-complexity ${{ inputs.max-complexity }}"
+        ARGS="$ARGS --max-cognitive-complexity ${{ inputs.max-cognitive-complexity }}"
+
+        if [ "${{ inputs.fail-on-warning }}" = "true" ]; then
+          ARGS="$ARGS --fail-on-warning"
+        fi
+        if [ "${{ inputs.fail-on-error }}" = "true" ]; then
+          ARGS="$ARGS --fail-on-error"
+        fi
+
+        echo "report-file=$REPORT_FILE" >> "$GITHUB_OUTPUT"
+        codopsy-ts analyze $ARGS
+
+    - name: Upload SARIF
+      if: inputs.upload-sarif == 'true' && inputs.format == 'sarif' && always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: codopsy-results.sarif

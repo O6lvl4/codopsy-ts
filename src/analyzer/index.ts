@@ -3,13 +3,18 @@ import { FileAnalysis } from './types.js';
 import { analyzeComplexity } from './complexity.js';
 import { lintFile } from './linter.js';
 import { CodopsyConfig } from '../config.js';
+import type { RuleDefinition } from '../plugin.js';
 
-export function analyzeFile(filePath: string, config?: CodopsyConfig): FileAnalysis {
+export function analyzeFile(
+  filePath: string,
+  config?: CodopsyConfig,
+  externalRules?: RuleDefinition[],
+): FileAnalysis {
   try {
     const sourceCode = fs.readFileSync(filePath, 'utf-8');
 
     const complexityResult = analyzeComplexity(filePath, sourceCode);
-    const issues = lintFile(filePath, sourceCode, config);
+    const issues = lintFile(filePath, sourceCode, config, externalRules);
 
     return {
       file: filePath,

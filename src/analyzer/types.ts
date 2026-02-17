@@ -22,6 +22,10 @@ export interface FileAnalysis {
     }>;
   };
   issues: Issue[];
+  score?: {
+    score: number;
+    grade: string;
+  };
 }
 
 export interface AnalysisResult {
@@ -34,5 +38,10 @@ export interface AnalysisResult {
     issuesBySeverity: Record<Severity, number>;
     averageComplexity: number;
     maxComplexity: { file: string; function: string; complexity: number } | null;
+  };
+  score?: {
+    overall: number;
+    grade: string;
+    distribution: Record<string, number>;
   };
 }
