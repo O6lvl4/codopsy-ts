@@ -134,7 +134,7 @@ async function analyzeAction(dir: string, options: AnalyzeOptions): Promise<void
 }
 
 const program = new Command();
-program.name('codopsy-ts').description('A code quality analysis CLI tool').version('1.1.0');
+program.name('codopsy-ts').description('A code quality analysis CLI tool').version('1.2.0');
 
 program.command('analyze')
   .description('Analyze source files in a directory')

@@ -1,6 +1,6 @@
 {
   "name": "codopsy-ts",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "AST-level code quality analyzer for TypeScript & JavaScript. Cyclomatic & cognitive complexity, 13 lint rules, JSON/HTML/SARIF output.",
   "type": "module",
   "main": "dist/api.js",
