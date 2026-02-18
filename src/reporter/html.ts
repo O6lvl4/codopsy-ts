@@ -87,11 +87,14 @@ function buildFileSection(analysis: FileAnalysis): string {
 
   const summaryBadges = badges.length > 0 ? badges.join(' ') : '<span class="severity-badge" style="background-color: #27ae60">clean</span>';
 
+  const hasIssues = issueCount > 0;
+  const hasHighComplexity = analysis.complexity.functions.some(fn => fn.complexity > 10 || fn.cognitiveComplexity > 15);
+
   return `
-    <details class="file-section">
+    <details class="file-section" data-file="${escapeHtml(analysis.file)}" data-has-issues="${hasIssues}" data-has-high-complexity="${hasHighComplexity}">
       <summary class="file-header">
-        <span class="file-name">${escapeHtml(analysis.file)}</span>
         <span class="file-badges">${summaryBadges}</span>
+        <span class="file-name">${escapeHtml(analysis.file)}</span>
         <span class="file-complexity">Complexity: ${analysis.complexity.cyclomatic} / Cognitive: ${analysis.complexity.cognitive}</span>
       </summary>
       <div class="file-body">
@@ -139,28 +142,41 @@ function gradeColorHtml(grade: string): string {
   }
 }
 
-function buildScoreCard(result: AnalysisResult): string {
+function buildScoreHero(result: AnalysisResult, avgComplexity: number): string {
   if (!result.score) return '';
   const { overall, grade, distribution } = result.score;
+  const color = gradeColorHtml(grade);
+
   const distEntries = Object.entries(distribution)
     .filter(([, count]) => (count as number) > 0)
-    .map(([g, count]) => `<span style="color: ${gradeColorHtml(g)}; font-weight: bold">${g}: ${count}</span>`)
-    .join(' &nbsp; ');
+    .map(([g, count]) => `<span class="dist-chip" style="background: ${gradeColorHtml(g)}1a; color: ${gradeColorHtml(g)}">${g}: ${count}</span>`)
+    .join('');
 
   return `
-        <div class="summary-card" style="border-top: 4px solid ${gradeColorHtml(grade)}">
-          <div class="label">Quality Score</div>
-          <div class="value" style="color: ${gradeColorHtml(grade)}; font-size: 2.5rem">${grade}</div>
-          <div class="detail">${overall} / 100</div>
-          <div class="detail" style="margin-top: 4px">${distEntries}</div>
-        </div>`;
+      <div class="score-hero">
+        <div class="score-grade" style="background: ${color}12; border-color: ${color}">
+          <div class="score-label">Quality Score</div>
+          <div class="score-letter" style="color: ${color}">${grade}</div>
+          <div class="score-bar-track">
+            <div class="score-bar-fill" style="width: ${overall}%; background: ${color}"></div>
+          </div>
+          <div class="score-number">${overall}<span class="score-denominator"> / 100</span></div>
+        </div>
+        <div class="score-meta">
+          <div class="score-meta-item">
+            <span class="score-meta-label">Avg Complexity</span>
+            <span class="score-meta-value">${avgComplexity.toFixed(1)}</span>
+          </div>
+        </div>
+        <div class="score-dist">${distEntries}</div>
+      </div>`;
 }
 
 function buildHtml(result: AnalysisResult): string {
   const { summary } = result;
-  const maxComplexityInfo = summary.maxComplexity
-    ? `${escapeHtml(summary.maxComplexity.function)} in ${escapeHtml(summary.maxComplexity.file)} (${summary.maxComplexity.complexity})`
-    : 'N/A';
+  const maxComplexityFunc = summary.maxComplexity ? escapeHtml(summary.maxComplexity.function) : 'N/A';
+  const maxComplexityPath = summary.maxComplexity ? escapeHtml(summary.maxComplexity.file) : '';
+  const cleanFiles = result.files.filter(f => f.issues.length === 0).length;
 
   const fileSections = result.files.map(f => buildFileSection(f)).join('\n');
 
@@ -187,24 +203,52 @@ function buildHtml(result: AnalysisResult): string {
   <div class="container">
     <section>
       <h2>Summary</h2>
-      <div class="summary-grid">${buildScoreCard(result)}
-        <div class="summary-card">
-          <div class="label">Files Analyzed</div>
-          <div class="value">${summary.totalFiles}</div>
-        </div>
-        <div class="summary-card error">
-          <div class="label">Total Issues</div>
-          <div class="value">${summary.totalIssues}</div>
-          <div class="detail">Error: ${summary.issuesBySeverity.error} / Warning: ${summary.issuesBySeverity.warning} / Info: ${summary.issuesBySeverity.info}</div>
-        </div>
-        <div class="summary-card complexity">
-          <div class="label">Avg Complexity</div>
-          <div class="value">${summary.averageComplexity.toFixed(1)}</div>
-        </div>
-        <div class="summary-card warning">
-          <div class="label">Max Complexity</div>
-          <div class="value">${summary.maxComplexity ? summary.maxComplexity.complexity : 'N/A'}</div>
-          <div class="detail">${maxComplexityInfo}</div>
+      <div class="summary-dashboard">
+        ${buildScoreHero(result, summary.averageComplexity)}
+        <div class="stats-grid">
+          <div class="stat-card" data-filter="all">
+            <div class="stat-icon" style="background: #2980b91a; color: #2980b9">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">${summary.totalFiles}</div>
+              <div class="stat-label">Files Analyzed</div>
+            </div>
+          </div>
+          <div class="stat-card" data-filter="has-issues">
+            <div class="stat-icon" style="background: #e74c3c1a; color: #e74c3c">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">${summary.totalIssues}</div>
+              <div class="stat-label">Total Issues</div>
+              <div class="stat-breakdown">
+                ${summary.issuesBySeverity.error > 0 ? `<span class="stat-dot" style="--dot-color: #e74c3c">${summary.issuesBySeverity.error} error</span>` : ''}
+                ${summary.issuesBySeverity.warning > 0 ? `<span class="stat-dot" style="--dot-color: #f39c12">${summary.issuesBySeverity.warning} warn</span>` : ''}
+                ${summary.issuesBySeverity.info > 0 ? `<span class="stat-dot" style="--dot-color: #3498db">${summary.issuesBySeverity.info} info</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="stat-card" data-filter="clean">
+            <div class="stat-icon" style="background: #27ae601a; color: #27ae60">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">${cleanFiles}<span class="stat-sub"> / ${summary.totalFiles}</span></div>
+              <div class="stat-label">Clean Files</div>
+            </div>
+          </div>
+          <div class="stat-card" data-filter="max-complexity" data-target-file="${maxComplexityPath}">
+            <div class="stat-icon" style="background: #f39c121a; color: #f39c12">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">${summary.maxComplexity ? summary.maxComplexity.complexity : 'N/A'}</div>
+              <div class="stat-label">Max Complexity</div>
+              <div class="stat-detail">${maxComplexityFunc}</div>
+              <div class="stat-detail">${maxComplexityPath}</div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -218,6 +262,46 @@ function buildHtml(result: AnalysisResult): string {
   <footer>
     Generated by Codopsy
   </footer>
+
+  <script>
+  (function() {
+    var cards = document.querySelectorAll('.stat-card[data-filter]');
+    var sections = document.querySelectorAll('.file-section');
+    var activeCard = null;
+
+    cards.forEach(function(card) {
+      card.addEventListener('click', function() {
+        var filter = card.getAttribute('data-filter');
+
+        if (activeCard === card) {
+          activeCard.classList.remove('active-filter');
+          activeCard = null;
+          sections.forEach(function(s) { s.style.display = ''; s.removeAttribute('open'); });
+          return;
+        }
+
+        if (activeCard) activeCard.classList.remove('active-filter');
+        card.classList.add('active-filter');
+        activeCard = card;
+
+        sections.forEach(function(s) {
+          var show = false;
+          if (filter === 'all') {
+            show = true;
+          } else if (filter === 'has-issues') {
+            show = s.getAttribute('data-has-issues') === 'true';
+          } else if (filter === 'clean') {
+            show = s.getAttribute('data-has-issues') === 'false';
+          } else if (filter === 'max-complexity') {
+            show = s.getAttribute('data-file') === card.getAttribute('data-target-file');
+          }
+          s.style.display = show ? '' : 'none';
+          if (show) s.setAttribute('open', '');
+        });
+      });
+    });
+  })();
+  </script>
 </body>
 </html>`;
 }

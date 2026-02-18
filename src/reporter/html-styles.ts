@@ -59,44 +59,202 @@ export function getStyles(): string {
       gap: 6px;
     }
 
-    .summary-grid {
+    /* ── Summary Dashboard ── */
+    .summary-dashboard {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
+      grid-template-columns: 260px 1fr;
+      gap: 20px;
       margin-bottom: 32px;
     }
 
-    .summary-card {
+    .score-hero {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .score-grade {
       background: #fff;
-      border-radius: 8px;
-      padding: 20px;
+      border-radius: 12px;
+      padding: 28px 24px;
+      text-align: center;
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      border-left: 4px solid #2980b9;
+      border: 2px solid;
     }
 
-    .summary-card.error { border-left-color: #e74c3c; }
-    .summary-card.warning { border-left-color: #f39c12; }
-    .summary-card.info { border-left-color: #3498db; }
-    .summary-card.complexity { border-left-color: #8e44ad; }
-
-    .summary-card .label {
-      font-size: 12px;
+    .score-label {
+      font-size: 11px;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
       color: #7f8c8d;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
 
-    .summary-card .value {
-      font-size: 28px;
+    .score-letter {
+      font-size: 64px;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+
+    .score-bar-track {
+      height: 6px;
+      background: #ecf0f1;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .score-number {
+      font-size: 20px;
       font-weight: 700;
       color: #2c3e50;
     }
 
-    .summary-card .detail {
-      font-size: 12px;
+    .score-denominator {
+      font-size: 13px;
+      font-weight: 400;
       color: #95a5a6;
-      margin-top: 4px;
+    }
+
+    .score-meta {
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .score-meta-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .score-meta-label {
+      font-size: 12px;
+      color: #7f8c8d;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .score-meta-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #2c3e50;
+    }
+
+    .score-dist {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .dist-chip {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    /* ── Stat Cards ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .stat-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 18px 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      cursor: pointer;
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+
+    .stat-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      transform: translateY(-1px);
+    }
+
+    .stat-card.active-filter {
+      box-shadow: 0 0 0 2px #2980b9, 0 4px 12px rgba(0,0,0,0.12);
+    }
+
+    .stat-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .stat-content {
+      min-width: 0;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #2c3e50;
+      line-height: 1.2;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #7f8c8d;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .stat-breakdown {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .stat-dot {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--dot-color);
+    }
+
+    .stat-dot::before {
+      content: '';
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--dot-color);
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    .stat-sub {
+      font-size: 14px;
+      font-weight: 400;
+      color: #95a5a6;
+    }
+
+    .stat-detail {
+      font-size: 11px;
+      color: #95a5a6;
+      margin-top: 2px;
+      overflow-wrap: break-word;
+      word-break: break-all;
     }
 
     h2 {
@@ -133,13 +291,17 @@ export function getStyles(): string {
       font-weight: 600;
       font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
       font-size: 13px;
-      flex-shrink: 0;
+      min-width: 0;
+      overflow-wrap: break-word;
+      word-break: break-all;
     }
 
     .file-badges {
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
+      flex-shrink: 0;
+      order: -1;
     }
 
     .file-complexity {
@@ -231,14 +393,32 @@ export function getStyles(): string {
       color: #95a5a6;
     }
 
-    @media (max-width: 600px) {
-      .summary-grid {
-        grid-template-columns: 1fr 1fr;
+    @media (max-width: 768px) {
+      .summary-dashboard {
+        grid-template-columns: 1fr;
       }
 
+      .score-grade {
+        padding: 20px;
+      }
+
+      .score-letter {
+        font-size: 48px;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 600px) {
       .meta-info {
         flex-direction: column;
         gap: 4px;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
       }
 
       .file-header {
