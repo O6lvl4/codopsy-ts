@@ -6,7 +6,7 @@
 
 <p align="center">
   AST-level code quality analyzer for TypeScript & JavaScript.<br>
-  <b>Quality scoring</b> (A&ndash;F), <b>cyclomatic &amp; cognitive complexity</b>, <b>13 lint rules</b>,<br>
+  <b>Quality scoring</b> (A&ndash;F), <b>cyclomatic &amp; cognitive complexity</b>, <b>47 lint rules</b>,<br>
   <b>baseline tracking</b>, <b>hotspot detection</b>, and <b>plugin support</b><br>
   &mdash; all from a single command.
 </p>
@@ -160,9 +160,9 @@ Every file and the project as a whole receive a score from **0&ndash;100**, mapp
 
 The score is composed of three sub-scores:
 
-- **Complexity** (0&ndash;40) &mdash; penalties for cyclomatic > 10, cognitive > 15
-- **Issues** (0&ndash;40) &mdash; penalties per error (-8), warning (-3), info (-1)
-- **Structure** (0&ndash;20) &mdash; penalties for long files, deep nesting, many params
+- **Complexity** (0&ndash;35) &mdash; penalties for cyclomatic > 10 (&times;2, cap 15/fn), cognitive > 15 (&times;1.5, cap 12/fn)
+- **Issues** (0&ndash;40) &mdash; error: -8&times;count, warning: -4&times;&radic;count, info: -1&times;&radic;count (per rule, sqrt diminishing returns)
+- **Structure** (0&ndash;25) &mdash; max-lines (-10, cap 12), max-depth (-4, cap 12), max-params (-3, cap 10)
 
 ---
 
@@ -478,7 +478,7 @@ npm install
 
 ```bash
 npm start -- analyze ./src        # Run locally
-npm test                          # 138 tests
+npm test                          # 312 tests
 npm run test:watch                # Watch mode
 npm run build                     # Compile to dist/
 ```
@@ -491,6 +491,13 @@ Codopsy analyzes itself with grade A and 0 warnings:
 npm start -- analyze ./src --verbose
 # 28 files, Quality Score: A (99/100), 0 warnings
 ```
+
+---
+
+## Roadmap
+
+- **LSP / IDE integration** &mdash; VS Code extension with real-time diagnostics
+- **Rule documentation site** &mdash; Per-rule reference pages with examples, configuration, and rationale
 
 ---
 

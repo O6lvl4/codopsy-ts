@@ -31,7 +31,8 @@ function isLogicalBinaryExpression(node: ts.Node): boolean {
   if (!ts.isBinaryExpression(node)) return false;
   return (
     node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
-    node.operatorToken.kind === ts.SyntaxKind.BarBarToken
+    node.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+    node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
   );
 }
 
@@ -52,18 +53,6 @@ function calculateComplexity(node: ts.Node): number {
 
 // --- Cognitive complexity helpers ---
 
-const COGNITIVE_NESTING_KINDS = new Set([
-  ts.SyntaxKind.IfStatement,
-  ts.SyntaxKind.ForStatement,
-  ts.SyntaxKind.ForInStatement,
-  ts.SyntaxKind.ForOfStatement,
-  ts.SyntaxKind.WhileStatement,
-  ts.SyntaxKind.DoStatement,
-  ts.SyntaxKind.SwitchStatement,
-  ts.SyntaxKind.CatchClause,
-  ts.SyntaxKind.ConditionalExpression,
-]);
-
 function isLoopOrSwitch(node: ts.Node): boolean {
   return ts.isForStatement(node) || ts.isForInStatement(node) ||
     ts.isForOfStatement(node) || ts.isWhileStatement(node) ||
@@ -81,7 +70,11 @@ function isLabeledJump(node: ts.Node): node is (ts.BreakStatement | ts.ContinueS
 function collectLogicalOps(node: ts.Node, ops: ts.SyntaxKind[]): void {
   if (ts.isBinaryExpression(node)) {
     const kind = node.operatorToken.kind;
-    if (kind === ts.SyntaxKind.AmpersandAmpersandToken || kind === ts.SyntaxKind.BarBarToken) {
+    if (
+      kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+      kind === ts.SyntaxKind.BarBarToken ||
+      kind === ts.SyntaxKind.QuestionQuestionToken
+    ) {
       collectLogicalOps(node.left, ops);
       ops.push(kind);
       collectLogicalOps(node.right, ops);
@@ -125,8 +118,30 @@ function handleIfStatement(
   }
 }
 
+function getFunctionNestingDepth(node: ts.Node): number {
+  let depth = 0;
+  let current = node.parent;
+  while (current) {
+    if (isFunctionNode(current)) depth++;
+    current = current.parent;
+  }
+  return depth;
+}
+
+const OPTIONAL_CHAIN_KINDS = new Set([
+  ts.SyntaxKind.CallExpression,
+  ts.SyntaxKind.PropertyAccessExpression,
+  ts.SyntaxKind.ElementAccessExpression,
+]);
+
+function hasQuestionDotToken(node: ts.Node): boolean {
+  return OPTIONAL_CHAIN_KINDS.has(node.kind) &&
+    !!(node as ts.CallExpression | ts.PropertyAccessExpression | ts.ElementAccessExpression).questionDotToken;
+}
+
 function calculateCognitiveComplexity(funcNode: ts.Node): number {
   let complexity = 0;
+  const baseNesting = getFunctionNestingDepth(funcNode);
 
   function walk(node: ts.Node, nesting: number): void {
     if (node !== funcNode && isFunctionNode(node)) return;
@@ -147,15 +162,13 @@ function calculateCognitiveComplexity(funcNode: ts.Node): number {
       return;
     }
 
-    if (isLabeledJump(node)) {
-      complexity++;
-      return;
-    }
+    if (isLabeledJump(node)) { complexity++; return; }
+    if (hasQuestionDotToken(node)) complexity++;
 
     ts.forEachChild(node, (child) => walk(child, nesting));
   }
 
-  ts.forEachChild(funcNode, (child) => walk(child, 0));
+  ts.forEachChild(funcNode, (child) => walk(child, baseNesting));
   return complexity;
 }
 

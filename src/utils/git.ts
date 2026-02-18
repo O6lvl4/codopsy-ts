@@ -84,10 +84,11 @@ export function getFileChurnStats(
       }
 
       // This is a file path
-      if (!stats.has(trimmed)) {
-        stats.set(trimmed, { commits: new Set(), authors: new Set() });
+      let entry = stats.get(trimmed);
+      if (!entry) {
+        entry = { commits: new Set(), authors: new Set() };
+        stats.set(trimmed, entry);
       }
-      const entry = stats.get(trimmed)!;
       entry.commits.add(currentHash);
       entry.authors.add(currentAuthor);
     }

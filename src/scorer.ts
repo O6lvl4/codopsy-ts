@@ -26,45 +26,72 @@ function clampMin0(value: number): number {
   return value < 0 ? 0 : value;
 }
 
-const SEVERITY_PENALTY: Record<string, number> = {
-  error: 8,
-  warning: 3,
-  info: 1,
+const STRUCTURE_PENALTIES: Record<string, { perViolation: number; cap: number }> = {
+  'max-lines': { perViolation: 10, cap: 12 },
+  'max-depth': { perViolation: 4, cap: 12 },
+  'max-params': { perViolation: 3, cap: 10 },
 };
 
-const STRUCTURE_RULES: Record<string, number> = {
-  'max-lines': 10,
-  'max-depth': 5,
-  'max-params': 5,
-};
+const STRUCTURE_RULE_NAMES = new Set(Object.keys(STRUCTURE_PENALTIES));
+
+const EXCLUDED_FROM_ISSUES = new Set([
+  ...STRUCTURE_RULE_NAMES,
+  'max-complexity',
+  'max-cognitive-complexity',
+]);
 
 function scoreComplexity(analysis: FileAnalysis): number {
-  let score = 40;
+  let penalty = 0;
   for (const fn of analysis.complexity.functions) {
-    if (fn.complexity > 10) score -= (fn.complexity - 10) * 3;
-    if (fn.cognitiveComplexity > 15) score -= (fn.cognitiveComplexity - 15) * 2;
+    const ccExcess = Math.max(0, fn.complexity - 10);
+    const cogExcess = Math.max(0, fn.cognitiveComplexity - 15);
+    penalty += Math.min(ccExcess * 2, 15);
+    penalty += Math.min(cogExcess * 1.5, 12);
   }
-  return clampMin0(score);
+  return clampMin0(35 - penalty);
 }
 
 function scoreIssues(analysis: FileAnalysis): number {
-  let score = 40;
+  const ruleGroups = new Map<string, { severity: string; count: number }>();
+
   for (const issue of analysis.issues) {
-    score -= SEVERITY_PENALTY[issue.severity] ?? 0;
+    if (EXCLUDED_FROM_ISSUES.has(issue.rule)) continue;
+    const existing = ruleGroups.get(issue.rule);
+    if (existing) {
+      existing.count++;
+    } else {
+      ruleGroups.set(issue.rule, { severity: issue.severity, count: 1 });
+    }
   }
-  return clampMin0(score);
+
+  let penalty = 0;
+  for (const { severity, count } of ruleGroups.values()) {
+    if (severity === 'error') {
+      penalty += 8 * count;
+    } else if (severity === 'warning') {
+      penalty += 4 * Math.sqrt(count);
+    } else if (severity === 'info') {
+      penalty += 1 * Math.sqrt(count);
+    }
+  }
+
+  return clampMin0(Math.round(40 - penalty));
 }
 
 function scoreStructure(analysis: FileAnalysis): number {
-  let score = 20;
-  for (const [rule, penalty] of Object.entries(STRUCTURE_RULES)) {
-    if (analysis.issues.some(i => i.rule === rule)) score -= penalty;
+  let score = 25;
+  for (const [rule, { perViolation, cap }] of Object.entries(STRUCTURE_PENALTIES)) {
+    const count = analysis.issues.filter(i => i.rule === rule).length;
+    if (count > 0) {
+      score -= Math.min(perViolation * count, cap);
+    }
   }
   return clampMin0(score);
 }
 
 export function calculateFileScore(analysis: FileAnalysis): FileScore {
-  const score = scoreComplexity(analysis) + scoreIssues(analysis) + scoreStructure(analysis);
+  const raw = scoreComplexity(analysis) + scoreIssues(analysis) + scoreStructure(analysis);
+  const score = Math.round(raw);
   return { file: analysis.file, score, grade: toGrade(score) };
 }
 

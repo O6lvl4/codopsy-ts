@@ -107,4 +107,16 @@ describe('analyzeComplexity', () => {
     const result = analyzeComplexity('test.ts', code);
     expect(result.cyclomatic).toBe(3);
   });
+
+  it('nullish coalescing (??) で+1', () => {
+    const code = 'function foo(x: number | null) { return x ?? 0; }';
+    const result = analyzeComplexity('test.ts', code);
+    expect(result.functions[0].complexity).toBe(2);
+  });
+
+  it('?? と || の混在で各+1', () => {
+    const code = 'function foo(a: any, b: any, c: any) { return a ?? b || c; }';
+    const result = analyzeComplexity('test.ts', code);
+    expect(result.functions[0].complexity).toBe(3);
+  });
 });

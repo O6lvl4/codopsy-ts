@@ -149,7 +149,8 @@ describe('analyzeCognitiveComplexity', () => {
     const outer = result.functions.find(f => f.name === 'outer');
     const inner = result.functions.find(f => f.name === 'inner');
     expect(outer?.cognitiveComplexity).toBe(1);
-    expect(inner?.cognitiveComplexity).toBe(2);
+    // inner is nested inside outer, so starts at nesting depth=1
+    expect(inner?.cognitiveComplexity).toBe(4);
   });
 
   it('関数がないファイルはscore 0', () => {
@@ -196,5 +197,66 @@ describe('analyzeCognitiveComplexity', () => {
     const code = 'function foo(x: number, y: number) { return x > 0 ? (y > 0 ? 1 : 2) : 0; }';
     const result = analyzeCognitiveComplexity('test.ts', code);
     expect(result.functions[0].cognitiveComplexity).toBe(3);
+  });
+
+  it('nullish coalescing (??) は論理演算子と同様に扱う', () => {
+    const code = 'function foo(a: any, b: any) { return a ?? b; }';
+    const result = analyzeCognitiveComplexity('test.ts', code);
+    expect(result.functions[0].cognitiveComplexity).toBe(1);
+  });
+
+  it('?? と || の混在でスイッチごとに+1', () => {
+    // a ?? b: +1 (first ??), || c: +1 (switch to ||) = 2
+    const code = 'function foo(a: any, b: any, c: any) { return a ?? b || c; }';
+    const result = analyzeCognitiveComplexity('test.ts', code);
+    expect(result.functions[0].cognitiveComplexity).toBe(2);
+  });
+
+  it('optional chaining (?.) は+1', () => {
+    const code = 'function foo(obj: any) { return obj?.prop; }';
+    const result = analyzeCognitiveComplexity('test.ts', code);
+    expect(result.functions[0].cognitiveComplexity).toBe(1);
+  });
+
+  it('optional chaining チェーンは各?. ごとに+1', () => {
+    const code = 'function foo(obj: any) { return obj?.a?.b?.c; }';
+    const result = analyzeCognitiveComplexity('test.ts', code);
+    expect(result.functions[0].cognitiveComplexity).toBe(3);
+  });
+
+  it('optional call (?.) は+1', () => {
+    const code = 'function foo(fn: any) { return fn?.(); }';
+    const result = analyzeCognitiveComplexity('test.ts', code);
+    expect(result.functions[0].cognitiveComplexity).toBe(1);
+  });
+
+  it('ネストされた関数はネスト深度分のペナルティを受ける', () => {
+    const code = `
+      function outer() {
+        function middle() {
+          function deepInner() {
+            if (true) {}
+          }
+        }
+      }
+    `;
+    const result = analyzeCognitiveComplexity('test.ts', code);
+    const deepInner = result.functions.find(f => f.name === 'deepInner');
+    // deepInner is nested 2 levels deep: if: +1 + 2(nesting) = 3
+    expect(deepInner?.cognitiveComplexity).toBe(3);
+  });
+
+  it('ラムダのネスト深度が正しく反映される', () => {
+    const code = `
+      const outer = () => {
+        const inner = () => {
+          if (true) {}
+        };
+      };
+    `;
+    const result = analyzeCognitiveComplexity('test.ts', code);
+    const inner = result.functions.find(f => f.name === 'inner');
+    // inner is nested 1 level: if: +1 + 1(nesting) = 2
+    expect(inner?.cognitiveComplexity).toBe(2);
   });
 });

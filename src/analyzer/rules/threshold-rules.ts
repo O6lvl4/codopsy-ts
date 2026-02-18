@@ -1,5 +1,5 @@
 import * as ts from 'typescript';
-import { Issue, Severity } from '../types.js';
+import { Issue } from '../types.js';
 import { createIssue, getLineAndColumn, ThresholdCheckOptions } from '../lint-utils.js';
 
 export function checkMaxLines(

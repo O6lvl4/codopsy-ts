@@ -1,216 +1,45 @@
 import * as ts from 'typescript';
 import { Issue, Severity } from './types.js';
-import { createIssue, getLineAndColumn } from './lint-utils.js';
 import { getScriptKind } from '../utils/file.js';
 import { CodopsyConfig } from '../config.js';
 import { checkPreferConst } from './prefer-const.js';
 import { checkNoParamReassign } from './rules/no-param-reassign.js';
 import { checkMaxLines, checkMaxDepth, checkMaxParams } from './rules/threshold-rules.js';
+import {
+  checkNoAny, checkNoConsole, checkNoEmptyFunction, checkNoNestedTernary,
+  checkNoVar, checkNoNonNullAssertion, checkEqeqeq,
+} from './rules/style-rules.js';
+import {
+  checkNoDebugger, checkNoDuplicateCase, checkNoDupeKeys,
+  checkUseIsNaN, checkNoSelfAssign, checkNoTemplateCurlyInString,
+  checkNoSelfCompare,
+} from './rules/bug-detection.js';
+import {
+  checkNoCondAssign, checkValidTypeof, checkNoConstantCondition,
+} from './rules/condition-rules.js';
+import { checkNoUnusedVars } from './rules/no-unused-vars.js';
+import {
+  checkNoEval, checkNoImpliedEval, checkNoWith, checkNoVoid,
+  checkNoLabel, checkNoCommaOperator,
+} from './rules/restriction-rules.js';
+import {
+  checkNoUselessCatch, checkNoUselessRename, checkNoUselessConstructor,
+} from './rules/useless-code-rules.js';
+import {
+  checkNoSparseArrays, checkNoPrototypeBuiltins, checkNoArrayConstructor,
+  checkNoThrowLiteral, checkNoAsyncPromiseExecutor, checkNoLossOfPrecision,
+  checkNoConstantBinaryExpression, checkNoRegexConstructor,
+} from './rules/error-prevention-rules.js';
+import {
+  checkNoUnreachable, checkNoFallthrough, checkNoUnsafeFinally,
+} from './rules/control-flow-rules.js';
+import {
+  checkNoFloatingPromises, checkNoMisusedPromises, checkAwaitThenable,
+} from './rules/promise-rules.js';
 import type { RuleDefinition } from '../plugin.js';
 
-function checkNoAny(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  issues: Issue[],
-  severity: Severity = 'warning',
-): void {
-  function visit(node: ts.Node) {
-    if (node.kind === ts.SyntaxKind.AnyKeyword) {
-      const { line, column } = getLineAndColumn(sourceFile, node.getStart(sourceFile));
-      issues.push(
-        createIssue({ file: filePath, line, column, severity, rule: 'no-any', message: 'Avoid using "any" type' }),
-      );
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(sourceFile);
-}
-
-function checkNoConsole(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  issues: Issue[],
-  severity: Severity = 'info',
-): void {
-  function visit(node: ts.Node) {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression)
-    ) {
-      const expr = node.expression;
-      if (
-        ts.isIdentifier(expr.expression) &&
-        expr.expression.text === 'console'
-      ) {
-        const { line, column } = getLineAndColumn(sourceFile, node.getStart(sourceFile));
-        issues.push(
-          createIssue({
-            file: filePath,
-            line,
-            column,
-            severity,
-            rule: 'no-console',
-            message: `Unexpected console.${expr.name.text} statement`,
-          }),
-        );
-      }
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(sourceFile);
-}
-
-const FUNCTION_KINDS_WITH_BODY = new Set([
-  ts.SyntaxKind.FunctionDeclaration,
-  ts.SyntaxKind.FunctionExpression,
-  ts.SyntaxKind.MethodDeclaration,
-  ts.SyntaxKind.Constructor,
-  ts.SyntaxKind.GetAccessor,
-  ts.SyntaxKind.SetAccessor,
-]);
-
-function getFunctionBody(node: ts.Node): ts.Block | undefined {
-  if (FUNCTION_KINDS_WITH_BODY.has(node.kind)) {
-    const body = (node as ts.FunctionDeclaration).body;
-    return body && ts.isBlock(body) ? body : undefined;
-  }
-  if (ts.isArrowFunction(node) && node.body && ts.isBlock(node.body)) {
-    return node.body;
-  }
-  return undefined;
-}
-
-function checkNoEmptyFunction(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  issues: Issue[],
-  severity: Severity = 'warning',
-): void {
-  function visit(node: ts.Node) {
-    const body = getFunctionBody(node);
-
-    if (body && body.statements.length === 0) {
-      const bodyText = body.getText(sourceFile).slice(1, -1).trim();
-      // Only flag truly empty functions (no content at all).
-      // Functions with comments are considered intentional (e.g. event handlers, keep-alive callbacks).
-      if (bodyText === '') {
-        const { line, column } = getLineAndColumn(sourceFile, node.getStart(sourceFile));
-        issues.push(
-          createIssue({
-            file: filePath,
-            line,
-            column,
-            severity,
-            rule: 'no-empty-function',
-            message: 'Unexpected empty function',
-          }),
-        );
-      }
-    }
-
-    ts.forEachChild(node, visit);
-  }
-  visit(sourceFile);
-}
-
-/** Check if a node is a JSX boundary (element, self-closing, or fragment). */
-function isJsxBoundary(node: ts.Node): boolean {
-  return ts.isJsxElement(node) ||
-    ts.isJsxSelfClosingElement(node) ||
-    ts.isJsxFragment(node);
-}
-
-function checkNoNestedTernary(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  issues: Issue[],
-  severity: Severity = 'warning',
-): void {
-  function visit(node: ts.Node) {
-    if (ts.isConditionalExpression(node)) {
-      function hasNestedTernary(child: ts.Node): boolean {
-        if (child !== node && ts.isConditionalExpression(child)) {
-          return true;
-        }
-        // Stop recursion at JSX boundaries — ternaries inside JSX elements
-        // (e.g. style props, child expressions) are in a separate visual context
-        // and should not be treated as nested ternaries.
-        if (isJsxBoundary(child)) {
-          return false;
-        }
-        return ts.forEachChild(child, (grandchild) => {
-          if (hasNestedTernary(grandchild)) return true;
-          return undefined;
-        }) ?? false;
-      }
-
-      if (hasNestedTernary(node)) {
-        const { line, column } = getLineAndColumn(sourceFile, node.getStart(sourceFile));
-        issues.push(
-          createIssue({
-            file: filePath,
-            line,
-            column,
-            severity,
-            rule: 'no-nested-ternary',
-            message: 'Do not nest ternary expressions',
-          }),
-        );
-      }
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(sourceFile);
-}
-
-function checkNoVar(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  issues: Issue[],
-  severity: Severity = 'warning',
-): void {
-  function visit(node: ts.Node) {
-    if (ts.isVariableDeclarationList(node)) {
-      if (!(node.flags & ts.NodeFlags.Const) && !(node.flags & ts.NodeFlags.Let)) {
-        const { line, column } = getLineAndColumn(sourceFile, node.getStart(sourceFile));
-        issues.push(
-          createIssue({ file: filePath, line, column, severity, rule: 'no-var', message: 'Unexpected var, use let or const instead' }),
-        );
-      }
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(sourceFile);
-}
-
-function checkEqeqeq(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  issues: Issue[],
-  severity: Severity = 'warning',
-): void {
-  function visit(node: ts.Node) {
-    if (ts.isBinaryExpression(node)) {
-      const op = node.operatorToken.kind;
-      if (op === ts.SyntaxKind.EqualsEqualsToken) {
-        const { line, column } = getLineAndColumn(sourceFile, node.operatorToken.getStart(sourceFile));
-        issues.push(
-          createIssue({ file: filePath, line, column, severity, rule: 'eqeqeq', message: 'Expected "===" but found "=="' }),
-        );
-      } else if (op === ts.SyntaxKind.ExclamationEqualsToken) {
-        const { line, column } = getLineAndColumn(sourceFile, node.operatorToken.getStart(sourceFile));
-        issues.push(
-          createIssue({ file: filePath, line, column, severity, rule: 'eqeqeq', message: 'Expected "!==" but found "!="' }),
-        );
-      }
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(sourceFile);
-}
-
 type SimpleCheckFn = (sf: ts.SourceFile, fp: string, issues: Issue[], severity?: Severity) => void;
-type SimpleRuleName = 'no-any' | 'no-console' | 'no-empty-function' | 'no-nested-ternary' | 'prefer-const' | 'no-var' | 'eqeqeq' | 'no-param-reassign';
+type SimpleRuleName = string;
 
 const SIMPLE_RULES: Array<[SimpleRuleName, SimpleCheckFn]> = [
   ['no-any', checkNoAny],
@@ -220,7 +49,41 @@ const SIMPLE_RULES: Array<[SimpleRuleName, SimpleCheckFn]> = [
   ['prefer-const', checkPreferConst],
   ['no-var', checkNoVar],
   ['eqeqeq', checkEqeqeq],
-  ['no-param-reassign', checkNoParamReassign],
+  ['no-non-null-assertion', checkNoNonNullAssertion],
+  ['no-debugger', checkNoDebugger],
+  ['no-duplicate-case', checkNoDuplicateCase],
+  ['no-dupe-keys', checkNoDupeKeys],
+  ['use-isnan', checkUseIsNaN],
+  ['no-self-assign', checkNoSelfAssign],
+  ['no-template-curly-in-string', checkNoTemplateCurlyInString],
+  ['no-self-compare', checkNoSelfCompare],
+  ['no-cond-assign', checkNoCondAssign],
+  ['valid-typeof', checkValidTypeof],
+  ['no-constant-condition', checkNoConstantCondition],
+  ['no-unused-vars', checkNoUnusedVars],
+  ['no-eval', checkNoEval],
+  ['no-implied-eval', checkNoImpliedEval],
+  ['no-with', checkNoWith],
+  ['no-void', checkNoVoid],
+  ['no-label', checkNoLabel],
+  ['no-comma-operator', checkNoCommaOperator],
+  ['no-useless-catch', checkNoUselessCatch],
+  ['no-useless-rename', checkNoUselessRename],
+  ['no-useless-constructor', checkNoUselessConstructor],
+  ['no-sparse-arrays', checkNoSparseArrays],
+  ['no-prototype-builtins', checkNoPrototypeBuiltins],
+  ['no-array-constructor', checkNoArrayConstructor],
+  ['no-throw-literal', checkNoThrowLiteral],
+  ['no-async-promise-executor', checkNoAsyncPromiseExecutor],
+  ['no-loss-of-precision', checkNoLossOfPrecision],
+  ['no-constant-binary-expression', checkNoConstantBinaryExpression],
+  ['no-regex-constructor', checkNoRegexConstructor],
+  ['no-unreachable', checkNoUnreachable],
+  ['no-fallthrough', checkNoFallthrough],
+  ['no-unsafe-finally', checkNoUnsafeFinally],
+  ['no-floating-promises', checkNoFloatingPromises],
+  ['no-misused-promises', checkNoMisusedPromises],
+  ['await-thenable', checkAwaitThenable],
 ];
 
 function getRuleSeverity(ruleValue: undefined | false | string | { severity?: string }): Severity | undefined {
@@ -236,6 +99,15 @@ function getThresholdOpts(ruleValue: unknown): { severity?: Severity; max?: numb
   return {};
 }
 
+function getParamReassignOpts(ruleValue: unknown): { severity?: Severity; props?: boolean } {
+  if (typeof ruleValue === 'string') return { severity: ruleValue as Severity };
+  if (ruleValue && typeof ruleValue === 'object') {
+    const obj = ruleValue as { severity?: Severity; props?: boolean };
+    return { severity: obj.severity, props: obj.props };
+  }
+  return {};
+}
+
 interface RunChecksContext {
   sourceFile: ts.SourceFile;
   filePath: string;
@@ -244,34 +116,53 @@ interface RunChecksContext {
   externalRules?: RuleDefinition[];
 }
 
-function runChecks(ctx: RunChecksContext): void {
-  const { sourceFile, filePath, issues, rules, externalRules } = ctx;
+function runSimpleRules(ctx: RunChecksContext): void {
+  const { sourceFile, filePath, issues, rules } = ctx;
   for (const [name, check] of SIMPLE_RULES) {
     if (rules?.[name] !== false) {
       check(sourceFile, filePath, issues, getRuleSeverity(rules?.[name]));
     }
   }
+}
 
-  if (rules?.['max-lines'] !== false) {
-    checkMaxLines(sourceFile, filePath, issues, getThresholdOpts(rules?.['max-lines']));
-  }
+type ThresholdCheckFn = typeof checkMaxLines;
+const THRESHOLD_RULES: Array<[string, ThresholdCheckFn]> = [
+  ['max-lines', checkMaxLines],
+  ['max-depth', checkMaxDepth],
+  ['max-params', checkMaxParams],
+];
 
-  if (rules?.['max-depth'] !== false) {
-    checkMaxDepth(sourceFile, filePath, issues, getThresholdOpts(rules?.['max-depth']));
-  }
-
-  if (rules?.['max-params'] !== false) {
-    checkMaxParams(sourceFile, filePath, issues, getThresholdOpts(rules?.['max-params']));
-  }
-
-  if (externalRules) {
-    for (const rule of externalRules) {
-      if (rules?.[rule.id] !== false) {
-        const severity = getRuleSeverity(rules?.[rule.id]) ?? rule.defaultSeverity;
-        rule.check(sourceFile, filePath, issues, severity);
-      }
+function runThresholdRules(ctx: RunChecksContext): void {
+  const { sourceFile, filePath, issues, rules } = ctx;
+  for (const [name, check] of THRESHOLD_RULES) {
+    if (rules?.[name] !== false) {
+      check(sourceFile, filePath, issues, getThresholdOpts(rules?.[name]));
     }
   }
+}
+
+function runExternalRules(ctx: RunChecksContext): void {
+  const { sourceFile, filePath, issues, rules, externalRules } = ctx;
+  if (!externalRules) return;
+  for (const rule of externalRules) {
+    if (rules?.[rule.id] !== false) {
+      const severity = getRuleSeverity(rules?.[rule.id]) ?? rule.defaultSeverity;
+      rule.check(sourceFile, filePath, issues, severity);
+    }
+  }
+}
+
+function runChecks(ctx: RunChecksContext): void {
+  const { sourceFile, filePath, issues, rules } = ctx;
+  runSimpleRules(ctx);
+
+  if (rules?.['no-param-reassign'] !== false) {
+    const opts = getParamReassignOpts(rules?.['no-param-reassign']);
+    checkNoParamReassign(sourceFile, filePath, issues, opts);
+  }
+
+  runThresholdRules(ctx);
+  runExternalRules(ctx);
 }
 
 export function lintFile(
