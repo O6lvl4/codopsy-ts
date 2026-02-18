@@ -77,7 +77,7 @@ describe('calculateFileScore', () => {
     expect(score.grade).toBe('B');
   });
 
-  it('warnings reduce score with sqrt diminishing returns', () => {
+  it('warnings reduce score with pow(0.7) diminishing returns', () => {
     const fa = makeFileAnalysis({
       issues: [
         { file: 'test.ts', line: 1, column: 1, severity: 'warning', rule: 'no-var', message: 'warn' },
@@ -86,8 +86,8 @@ describe('calculateFileScore', () => {
       ],
     });
     const score = calculateFileScore(fa);
-    // 35 + round(40 - 4*sqrt(3)) = round(40 - 6.93) = 33 + 25 = 93
-    expect(score.score).toBe(93);
+    // 35 + round(40 - 4*pow(3, 0.7)) = round(40 - 4*2.157) = round(40 - 8.63) = 31 + 25 = 91
+    expect(score.score).toBe(91);
     expect(score.grade).toBe('A');
   });
 
@@ -143,7 +143,7 @@ describe('calculateFileScore', () => {
       })),
     });
     const score = calculateFileScore(fa);
-    // complexity: 35 - min(20*2,15) - min(25*1.5,12) = 8
+    // complexity: 35 - min(20*2,15) - min(25*1.5,12) = 35 - 15 - 12 = 8
     // issues: round(40 - 80) = 0
     // structure: 25
     // total: 33 → F
@@ -159,21 +159,19 @@ describe('calculateFileScore', () => {
       ],
     });
     const score = calculateFileScore(fa);
-    // Both rules excluded from issues → no penalty
-    // 35 + 40 + 25 = 100
     expect(score.score).toBe(100);
     expect(score.grade).toBe('A');
   });
 
-  it('many same-rule warnings get sqrt diminishing returns', () => {
+  it('many same-rule warnings get pow(0.7) diminishing returns', () => {
     const fa = makeFileAnalysis({
       issues: Array.from({ length: 10 }, (_, i) => ({
         file: 'test.ts', line: i, column: 1, severity: 'warning' as const, rule: 'no-var', message: 'warn',
       })),
     });
     const score = calculateFileScore(fa);
-    // 35 + round(40 - 4*sqrt(10)) = round(40 - 12.65) = 27 + 25 = 87
-    expect(score.score).toBe(87);
+    // 35 + round(40 - 4*pow(10, 0.7)) = round(40 - 4*5.012) = round(40 - 20.05) = 20 + 25 = 80
+    expect(score.score).toBe(80);
     expect(score.grade).toBe('B');
   });
 
@@ -186,7 +184,7 @@ describe('calculateFileScore', () => {
       })),
     });
     const score = calculateFileScore(fa);
-    // 35 + round(40 - 10 * 4*sqrt(1)) = round(40 - 40) = 0 + 25 = 60
+    // 35 + round(40 - 10 * 4*pow(1, 0.7)) = round(40 - 40) = 0 + 25 = 60
     expect(score.score).toBe(60);
     expect(score.grade).toBe('C');
   });
@@ -258,5 +256,60 @@ describe('calculateProjectScore', () => {
     const score = calculateProjectScore(result);
     expect(score.distribution.A).toBe(1);
     expect(score.distribution.F).toBe(1);
+  });
+
+  it('issue density penalty reduces project score', () => {
+    // 5 files, each with 4 warnings = 20 total issues
+    const files = Array.from({ length: 5 }, (_, i) => makeFileAnalysis({
+      file: `file${i}.ts`,
+      complexity: { cyclomatic: 3, cognitive: 2, functions: [{ name: 'fn', line: 1, complexity: 3, cognitiveComplexity: 2 }] },
+      issues: Array.from({ length: 4 }, (_, j) => ({
+        file: `file${i}.ts`, line: j, column: 1, severity: 'warning' as const, rule: 'no-unused-vars', message: 'unused',
+      })),
+    }));
+    const result = makeResult(files);
+    const score = calculateProjectScore(result);
+    // Each file: issues penalty = 4*pow(4, 0.7) = 4*2.639 = 10.56, issues score = round(40-10.56) = 29
+    // File score: 35 + 29 + 25 = 89 (B)
+    // Weighted avg: 89 (all same)
+    // Density: sqrt(20)*0.8 = 4.47*0.8 = 3.58 → 4
+    // Project: 89 - 4 = 85 (B)
+    expect(score.score).toBe(85);
+    expect(score.grade).toBe('B');
+  });
+
+  it('clean project gets no density penalty', () => {
+    const files = Array.from({ length: 10 }, (_, i) => makeFileAnalysis({
+      file: `file${i}.ts`,
+      complexity: { cyclomatic: 3, cognitive: 2, functions: [{ name: 'fn', line: 1, complexity: 3, cognitiveComplexity: 2 }] },
+    }));
+    const result = makeResult(files);
+    const score = calculateProjectScore(result);
+    expect(score.score).toBe(100);
+    expect(score.grade).toBe('A');
+  });
+
+  it('many clean files cannot fully mask widespread issues', () => {
+    // 80 clean files + 20 dirty files with 10 warnings each = 200 total issues
+    const cleanFiles = Array.from({ length: 80 }, (_, i) => makeFileAnalysis({
+      file: `clean${i}.ts`,
+      complexity: { cyclomatic: 3, cognitive: 2, functions: [{ name: 'fn', line: 1, complexity: 3, cognitiveComplexity: 2 }] },
+    }));
+    const dirtyFiles = Array.from({ length: 20 }, (_, i) => makeFileAnalysis({
+      file: `dirty${i}.ts`,
+      complexity: { cyclomatic: 3, cognitive: 2, functions: [{ name: 'fn', line: 1, complexity: 3, cognitiveComplexity: 2 }] },
+      issues: Array.from({ length: 10 }, (_, j) => ({
+        file: `dirty${i}.ts`, line: j, column: 1, severity: 'warning' as const, rule: 'no-unused-vars', message: 'unused',
+      })),
+    }));
+    const result = makeResult([...cleanFiles, ...dirtyFiles]);
+    const score = calculateProjectScore(result);
+    // Dirty file: issues penalty = 4*pow(10,0.7) = 20.05, issues score = 20
+    // File score: 35 + 20 + 25 = 80 (B)
+    // Weighted avg: (80*100 + 20*80) / 100 = 96 (all same weight since all have 1 function)
+    // Density: sqrt(200)*0.8 = 14.14*0.8 = 11.31 → 11
+    // Project: 96 - 11 = 85 (B)
+    expect(score.score).toBe(85);
+    expect(score.grade).toBe('B');
   });
 });

@@ -69,7 +69,7 @@ function scoreIssues(analysis: FileAnalysis): number {
     if (severity === 'error') {
       penalty += 8 * count;
     } else if (severity === 'warning') {
-      penalty += 4 * Math.sqrt(count);
+      penalty += 4 * Math.pow(count, 0.7);
     } else if (severity === 'info') {
       penalty += 1 * Math.sqrt(count);
     }
@@ -115,6 +115,12 @@ export function calculateProjectScore(result: AnalysisResult): ProjectScore {
     totalWeight += weight;
   }
 
-  const score = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 100;
+  const baseScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 100;
+
+  // Issue density penalty: prevents clean files from masking widespread issues
+  const totalIssues = result.files.reduce((sum, f) => sum + f.issues.length, 0);
+  const densityPenalty = Math.min(Math.round(Math.sqrt(totalIssues) * 0.8), 15);
+
+  const score = Math.max(0, baseScore - densityPenalty);
   return { score, grade: toGrade(score), distribution };
 }
