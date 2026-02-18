@@ -119,6 +119,7 @@ export function checkNoUnsafeFinally(
 ): void {
   function visit(node: ts.Node) {
     if (ts.isTryStatement(node) && node.finallyBlock) {
+      const finallyBlock = node.finallyBlock;
       function checkFinally(n: ts.Node) {
         if (UNSAFE_FINALLY_KINDS.has(n.kind)) {
           const { line, column } = getLineAndColumn(sourceFile, n.getStart(sourceFile));
@@ -129,11 +130,11 @@ export function checkNoUnsafeFinally(
           return;
         }
         // Don't recurse into nested try/function (their finally is separate)
-        if (n !== node.finallyBlock && (ts.isTryStatement(n) || ts.isFunctionDeclaration(n) ||
+        if (n !== finallyBlock && (ts.isTryStatement(n) || ts.isFunctionDeclaration(n) ||
             ts.isFunctionExpression(n) || ts.isArrowFunction(n))) return;
         ts.forEachChild(n, checkFinally);
       }
-      checkFinally(node.finallyBlock);
+      checkFinally(finallyBlock);
     }
     ts.forEachChild(node, visit);
   }
