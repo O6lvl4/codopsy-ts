@@ -1,6 +1,8 @@
 import * as ts from 'typescript';
 import { Issue, Severity } from '../types.js';
 import { createIssue, getLineAndColumn } from '../lint-utils.js';
+import { collectBindingNames } from '../ast-utils.js';
+import { SCOPE_KINDS } from '../syntax-kinds.js';
 
 interface Declaration {
   name: string;
@@ -82,33 +84,6 @@ function isDeclarationPosition(node: ts.Identifier): boolean {
   return LABEL_STATEMENT_KINDS.has(parent.kind);
 }
 
-function collectBindingNames(node: ts.BindingName): string[] {
-  if (ts.isIdentifier(node)) return [node.text];
-  const names: string[] = [];
-  if (ts.isObjectBindingPattern(node) || ts.isArrayBindingPattern(node)) {
-    for (const element of node.elements) {
-      if (ts.isBindingElement(element)) {
-        names.push(...collectBindingNames(element.name));
-      }
-    }
-  }
-  return names;
-}
-
-const SCOPE_KINDS = new Set([
-  ts.SyntaxKind.Block,
-  ts.SyntaxKind.FunctionDeclaration,
-  ts.SyntaxKind.FunctionExpression,
-  ts.SyntaxKind.ArrowFunction,
-  ts.SyntaxKind.MethodDeclaration,
-  ts.SyntaxKind.Constructor,
-  ts.SyntaxKind.ForStatement,
-  ts.SyntaxKind.ForInStatement,
-  ts.SyntaxKind.ForOfStatement,
-  ts.SyntaxKind.CatchClause,
-  ts.SyntaxKind.ClassDeclaration,
-  ts.SyntaxKind.ClassExpression,
-]);
 
 export function checkNoUnusedVars(
   sourceFile: ts.SourceFile,

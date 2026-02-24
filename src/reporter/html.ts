@@ -1,45 +1,15 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import { AnalysisResult, FileAnalysis, Issue } from '../analyzer/types.js';
 import { getStyles } from './html-styles.js';
+import { writeReportFile } from './index.js';
+import { escapeHtml, severityColor, severityBgColor, gradeColorHtml, duplicationColor } from './html-helpers.js';
+import { buildDuplicationSection } from './html-duplication.js';
 
 export function formatHtmlReport(result: AnalysisResult): string {
   return buildHtml(result);
 }
 
 export function generateHtmlReport(result: AnalysisResult, outputPath: string): void {
-  const dir = path.dirname(outputPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
-  fs.writeFileSync(outputPath, formatHtmlReport(result), 'utf-8');
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function severityColor(severity: string): string {
-  switch (severity) {
-    case 'error': return '#e74c3c';
-    case 'warning': return '#f39c12';
-    case 'info': return '#3498db';
-    default: return '#999';
-  }
-}
-
-function severityBgColor(severity: string): string {
-  switch (severity) {
-    case 'error': return '#fdecea';
-    case 'warning': return '#fef9e7';
-    case 'info': return '#eaf2f8';
-    default: return '#f5f5f5';
-  }
+  writeReportFile(outputPath, formatHtmlReport(result));
 }
 
 function buildIssueRows(issues: Issue[]): string {
@@ -129,17 +99,6 @@ function buildFileSection(analysis: FileAnalysis): string {
         </table>
       </div>
     </details>`;
-}
-
-function gradeColorHtml(grade: string): string {
-  switch (grade) {
-    case 'A': return '#27ae60';
-    case 'B': return '#2ecc71';
-    case 'C': return '#f39c12';
-    case 'D': return '#e67e22';
-    case 'F': return '#e74c3c';
-    default: return '#999';
-  }
 }
 
 function buildScoreHero(result: AnalysisResult, avgComplexity: number): string {
@@ -249,9 +208,26 @@ function buildHtml(result: AnalysisResult): string {
               <div class="stat-detail">${maxComplexityPath}</div>
             </div>
           </div>
+          ${summary.duplication ? (() => {
+            const pct = summary.duplication.percentage;
+            const dupColor = duplicationColor(pct);
+            return `
+          <div class="stat-card">
+            <div class="stat-icon" style="background: ${dupColor}1a; color: ${dupColor}">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value" style="color: ${dupColor}">${pct.toFixed(1)}<span class="stat-sub">%</span></div>
+              <div class="stat-label">Duplication</div>
+              <div class="stat-breakdown"><span class="stat-dot" style="--dot-color: ${dupColor}">${summary.duplication.cloneCount} clone(s)</span></div>
+            </div>
+          </div>`;
+          })() : ''}
         </div>
       </div>
     </section>
+
+    ${buildDuplicationSection(result)}
 
     <section>
       <h2>File Details</h2>

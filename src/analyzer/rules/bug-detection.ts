@@ -1,24 +1,9 @@
 import * as ts from 'typescript';
 import { Issue, Severity } from '../types.js';
-import { createIssue, getLineAndColumn } from '../lint-utils.js';
+import { createIssue, getLineAndColumn, makeNodeKindChecker } from '../lint-utils.js';
 
-export function checkNoDebugger(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  issues: Issue[],
-  severity: Severity = 'warning',
-): void {
-  function visit(node: ts.Node) {
-    if (node.kind === ts.SyntaxKind.DebuggerStatement) {
-      const { line, column } = getLineAndColumn(sourceFile, node.getStart(sourceFile));
-      issues.push(
-        createIssue({ file: filePath, line, column, severity, rule: 'no-debugger', message: 'Unexpected debugger statement' }),
-      );
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(sourceFile);
-}
+export const checkNoDebugger = makeNodeKindChecker(
+  ts.SyntaxKind.DebuggerStatement, 'no-debugger', 'Unexpected debugger statement');
 
 export function checkNoDuplicateCase(
   sourceFile: ts.SourceFile,

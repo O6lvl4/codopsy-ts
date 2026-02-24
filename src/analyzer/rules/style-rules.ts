@@ -1,24 +1,18 @@
 import * as ts from 'typescript';
 import { Issue, Severity } from '../types.js';
-import { createIssue, getLineAndColumn } from '../lint-utils.js';
+import { createIssue, getLineAndColumn, makeNodeKindChecker } from '../lint-utils.js';
 
-export function checkNoAny(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  issues: Issue[],
-  severity: Severity = 'warning',
-): void {
-  function visit(node: ts.Node) {
-    if (node.kind === ts.SyntaxKind.AnyKeyword) {
-      const { line, column } = getLineAndColumn(sourceFile, node.getStart(sourceFile));
-      issues.push(
-        createIssue({ file: filePath, line, column, severity, rule: 'no-any', message: 'Avoid using "any" type' }),
-      );
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(sourceFile);
-}
+const FUNCTION_KINDS_WITH_BODY = new Set([
+  ts.SyntaxKind.FunctionDeclaration,
+  ts.SyntaxKind.FunctionExpression,
+  ts.SyntaxKind.MethodDeclaration,
+  ts.SyntaxKind.Constructor,
+  ts.SyntaxKind.GetAccessor,
+  ts.SyntaxKind.SetAccessor,
+]);
+
+export const checkNoAny = makeNodeKindChecker(
+  ts.SyntaxKind.AnyKeyword, 'no-any', 'Avoid using "any" type');
 
 function collectDestructuredAliases(
   node: ts.VariableDeclaration,
@@ -105,15 +99,6 @@ export function checkNoConsole(
   }
   visit(sourceFile);
 }
-
-const FUNCTION_KINDS_WITH_BODY = new Set([
-  ts.SyntaxKind.FunctionDeclaration,
-  ts.SyntaxKind.FunctionExpression,
-  ts.SyntaxKind.MethodDeclaration,
-  ts.SyntaxKind.Constructor,
-  ts.SyntaxKind.GetAccessor,
-  ts.SyntaxKind.SetAccessor,
-]);
 
 function getFunctionBody(node: ts.Node): ts.Block | undefined {
   if (FUNCTION_KINDS_WITH_BODY.has(node.kind)) {

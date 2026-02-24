@@ -1,4 +1,14 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { AnalysisResult } from '../analyzer/types.js';
+
+export function writeReportFile(outputPath: string, content: string): void {
+  const dir = path.dirname(outputPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(outputPath, content, 'utf-8');
+}
 import { generateJsonReport, formatJsonReport } from './json.js';
 import { generateHtmlReport, formatHtmlReport } from './html.js';
 import { generateSarifReport, formatSarifReport } from './sarif.js';

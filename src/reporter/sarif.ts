@@ -1,6 +1,6 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import { AnalysisResult, Issue, Severity } from '../analyzer/types.js';
+import { writeReportFile } from './index.js';
 
 const RULE_DESCRIPTIONS: Record<string, { description: string; level: string }> = {
   'no-any': { description: 'Disallow the use of any type', level: 'warning' },
@@ -135,10 +135,5 @@ export function formatSarifReport(result: AnalysisResult): string {
 }
 
 export function generateSarifReport(result: AnalysisResult, outputPath: string): void {
-  const dir = path.dirname(outputPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
-  fs.writeFileSync(outputPath, formatSarifReport(result), 'utf-8');
+  writeReportFile(outputPath, formatSarifReport(result));
 }

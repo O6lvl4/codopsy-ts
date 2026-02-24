@@ -4,6 +4,7 @@ import { AnalysisResult, FileAnalysis, Severity } from './analyzer/types.js';
 import { loadConfig, CodopsyConfig } from './config.js';
 import { calculateFileScore, calculateProjectScore } from './scorer.js';
 import { loadPlugins, RuleDefinition } from './plugin.js';
+import { detectDuplication, DuplicationResult } from './duplication/index.js';
 
 export interface AnalyzeOptions {
   targetDir: string;
@@ -11,26 +12,15 @@ export interface AnalyzeOptions {
   maxCognitiveComplexity?: number;
   config?: CodopsyConfig;
   files?: string[];
+  duplication?: boolean;
+  minDuplicationTokens?: number;
+  minDuplicationLines?: number;
 }
 
-export function buildAnalysisResult(
+function computeMaxComplexity(
   fileAnalyses: FileAnalysis[],
-  files: string[],
-  targetDir: string,
-): AnalysisResult {
-  const allIssues = fileAnalyses.flatMap((f) => f.issues);
-  const issuesBySeverity: Record<Severity, number> = { error: 0, warning: 0, info: 0 };
-  for (const issue of allIssues) {
-    issuesBySeverity[issue.severity]++;
-  }
-
-  const allFunctions = fileAnalyses.flatMap((f) => f.complexity.functions);
-  const avgComplexity =
-    allFunctions.length > 0
-      ? allFunctions.reduce((sum, fn) => sum + fn.complexity, 0) / allFunctions.length
-      : 0;
-
-  const maxComplexityEntry = fileAnalyses.reduce<AnalysisResult['summary']['maxComplexity']>(
+): AnalysisResult['summary']['maxComplexity'] {
+  return fileAnalyses.reduce<AnalysisResult['summary']['maxComplexity']>(
     (max, fa) =>
       fa.complexity.functions.reduce((m, fn) => {
         if (m === null || fn.complexity > m.complexity) {
@@ -40,11 +30,55 @@ export function buildAnalysisResult(
       }, max),
     null,
   );
+}
 
-  // Attach per-file scores
-  for (const fa of fileAnalyses) {
-    const fs = calculateFileScore(fa);
-    fa.score = { score: fs.score, grade: fs.grade };
+function addDuplicationIssues(
+  fileAnalyses: FileAnalysis[],
+  duplicationResult: DuplicationResult,
+  issuesBySeverity: Record<Severity, number>,
+): void {
+  for (const clone of duplicationResult.clones) {
+    const faA = fileAnalyses.find((f) => f.file === clone.fileA);
+    const faB = fileAnalyses.find((f) => f.file === clone.fileB);
+    if (faA) {
+      faA.issues.push({
+        file: faA.file, line: clone.startLineA, column: 1, severity: clone.severity,
+        rule: 'no-duplicate-code',
+        message: `重複コードブロック (${clone.lines}行) が ${clone.fileB}:${clone.startLineB} にあります`,
+      });
+    }
+    if (faB) {
+      faB.issues.push({
+        file: faB.file, line: clone.startLineB, column: 1, severity: clone.severity,
+        rule: 'no-duplicate-code',
+        message: `重複コードブロック (${clone.lines}行) が ${clone.fileA}:${clone.startLineA} にあります`,
+      });
+    }
+  }
+  for (const sev of Object.keys(issuesBySeverity) as Array<Severity>) {
+    issuesBySeverity[sev] = fileAnalyses.flatMap((f) => f.issues).filter((i) => i.severity === sev).length;
+  }
+}
+
+export function buildAnalysisResult(
+  fileAnalyses: FileAnalysis[],
+  files: string[],
+  targetDir: string,
+  duplicationResult?: DuplicationResult,
+): AnalysisResult {
+  const allIssues = fileAnalyses.flatMap((f) => f.issues);
+  const issuesBySeverity: Record<Severity, number> = { error: 0, warning: 0, info: 0 };
+  for (const issue of allIssues) issuesBySeverity[issue.severity]++;
+
+  const allFunctions = fileAnalyses.flatMap((f) => f.complexity.functions);
+  const avgComplexity = allFunctions.length > 0
+    ? allFunctions.reduce((sum, fn) => sum + fn.complexity, 0) / allFunctions.length
+    : 0;
+
+  const maxComplexityEntry = computeMaxComplexity(fileAnalyses);
+
+  if (duplicationResult) {
+    addDuplicationIssues(fileAnalyses, duplicationResult, issuesBySeverity);
   }
 
   const result: AnalysisResult = {
@@ -53,19 +87,33 @@ export function buildAnalysisResult(
     files: fileAnalyses,
     summary: {
       totalFiles: files.length,
-      totalIssues: allIssues.length,
+      totalIssues: fileAnalyses.flatMap((f) => f.issues).length,
       issuesBySeverity,
       averageComplexity: avgComplexity,
       maxComplexity: maxComplexityEntry,
+      ...(duplicationResult && {
+        duplication: {
+          percentage: duplicationResult.percentage,
+          totalDuplicatedLines: duplicationResult.totalDuplicatedLines,
+          totalLines: duplicationResult.totalLines,
+          cloneCount: duplicationResult.clones.length,
+        },
+      }),
     },
+    ...(duplicationResult && { duplication: duplicationResult }),
   };
 
-  // Attach project score
+  for (const fa of fileAnalyses) {
+    const fs = calculateFileScore(fa);
+    fa.score = { score: fs.score, grade: fs.grade };
+  }
+
   const projectScore = calculateProjectScore(result);
   result.score = {
     overall: projectScore.score,
     grade: projectScore.grade,
     distribution: projectScore.distribution,
+    ...(projectScore.duplicationPenalty !== undefined && { duplicationPenalty: projectScore.duplicationPenalty }),
   };
 
   return result;
@@ -150,5 +198,13 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalysisResult> 
     : undefined;
 
   const fileAnalyses = analyzeFiles(files, { config, maxComplexity, maxCognitiveComplexity, externalRules });
-  return buildAnalysisResult(fileAnalyses, files, options.targetDir);
+
+  const duplicationResult = options.duplication
+    ? detectDuplication(files, {
+        minTokens: options.minDuplicationTokens,
+        minLines: options.minDuplicationLines,
+      })
+    : undefined;
+
+  return buildAnalysisResult(fileAnalyses, files, options.targetDir, duplicationResult);
 }

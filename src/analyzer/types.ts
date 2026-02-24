@@ -1,5 +1,12 @@
 export type Severity = 'error' | 'warning' | 'info';
 
+export interface DuplicationSummary {
+  percentage: number;
+  totalDuplicatedLines: number;
+  totalLines: number;
+  cloneCount: number;
+}
+
 export interface Issue {
   file: string;
   line: number;
@@ -38,10 +45,13 @@ export interface AnalysisResult {
     issuesBySeverity: Record<Severity, number>;
     averageComplexity: number;
     maxComplexity: { file: string; function: string; complexity: number } | null;
+    duplication?: DuplicationSummary;
   };
   score?: {
     overall: number;
     grade: string;
     distribution: Record<string, number>;
+    duplicationPenalty?: number;
   };
+  duplication?: import('../duplication/types.js').DuplicationResult;
 }

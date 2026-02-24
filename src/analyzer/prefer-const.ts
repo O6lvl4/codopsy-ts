@@ -1,6 +1,8 @@
 import * as ts from 'typescript';
 import { Issue, Severity } from './types.js';
 import { createIssue, getLineAndColumn } from './lint-utils.js';
+import { collectBindingNames } from './ast-utils.js';
+import { ASSIGNMENT_OPERATORS, UPDATE_OPERATORS, SCOPE_NODE_KINDS } from './syntax-kinds.js';
 
 interface LetBinding {
   name: string;
@@ -10,20 +12,6 @@ interface LetBinding {
 
 type Scope = Map<string, LetBinding>;
 
-function collectNamesFromBinding(node: ts.BindingName): string[] {
-  if (ts.isIdentifier(node)) {
-    return [node.text];
-  }
-  const names: string[] = [];
-  if (ts.isObjectBindingPattern(node) || ts.isArrayBindingPattern(node)) {
-    for (const element of node.elements) {
-      if (ts.isBindingElement(element)) {
-        names.push(...collectNamesFromBinding(element.name));
-      }
-    }
-  }
-  return names;
-}
 
 function collectAssignmentTargetNames(node: ts.Node): string[] {
   if (ts.isIdentifier(node)) {
@@ -50,47 +38,6 @@ function collectAssignmentTargetNames(node: ts.Node): string[] {
   return [];
 }
 
-const UPDATE_OPERATORS = new Set([
-  ts.SyntaxKind.PlusPlusToken,
-  ts.SyntaxKind.MinusMinusToken,
-]);
-
-const ASSIGNMENT_OPERATORS = new Set([
-  ts.SyntaxKind.EqualsToken,
-  ts.SyntaxKind.PlusEqualsToken,
-  ts.SyntaxKind.MinusEqualsToken,
-  ts.SyntaxKind.AsteriskEqualsToken,
-  ts.SyntaxKind.SlashEqualsToken,
-  ts.SyntaxKind.PercentEqualsToken,
-  ts.SyntaxKind.AmpersandEqualsToken,
-  ts.SyntaxKind.BarEqualsToken,
-  ts.SyntaxKind.CaretEqualsToken,
-  ts.SyntaxKind.LessThanLessThanEqualsToken,
-  ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,
-  ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken,
-  ts.SyntaxKind.AsteriskAsteriskEqualsToken,
-  ts.SyntaxKind.BarBarEqualsToken,
-  ts.SyntaxKind.AmpersandAmpersandEqualsToken,
-  ts.SyntaxKind.QuestionQuestionEqualsToken,
-]);
-
-const SCOPE_NODE_KINDS = new Set([
-  ts.SyntaxKind.SourceFile,
-  ts.SyntaxKind.Block,
-  ts.SyntaxKind.FunctionDeclaration,
-  ts.SyntaxKind.FunctionExpression,
-  ts.SyntaxKind.ArrowFunction,
-  ts.SyntaxKind.MethodDeclaration,
-  ts.SyntaxKind.Constructor,
-  ts.SyntaxKind.ForStatement,
-  ts.SyntaxKind.ForInStatement,
-  ts.SyntaxKind.ForOfStatement,
-  ts.SyntaxKind.CatchClause,
-  ts.SyntaxKind.ClassDeclaration,
-  ts.SyntaxKind.ClassExpression,
-  ts.SyntaxKind.CaseClause,
-  ts.SyntaxKind.DefaultClause,
-]);
 
 function isScopeNode(node: ts.Node): boolean {
   return SCOPE_NODE_KINDS.has(node.kind);
@@ -138,7 +85,7 @@ export function checkPreferConst(
 
     const currentScope = scopeStack[scopeStack.length - 1];
     for (const decl of node.declarations) {
-      for (const name of collectNamesFromBinding(decl.name)) {
+      for (const name of collectBindingNames(decl.name)) {
         const binding: LetBinding = { name, decl, reassigned: false };
         currentScope.set(name, binding);
         allBindings.push(binding);

@@ -30,6 +30,9 @@ interface AnalyzeOptions {
   baselinePath?: string;
   noDegradation?: boolean;
   hotspots?: boolean;
+  duplication?: boolean;
+  minDuplicationTokens?: string;
+  minDuplicationLines?: string;
 }
 
 interface AnalyzeContext {
@@ -125,7 +128,19 @@ async function analyzeAction(dir: string, options: AnalyzeOptions): Promise<void
   if (!files) return;
 
   const fileAnalyses = analyzeFiles(files, { config, maxComplexity: ctx.maxComplexity, maxCognitiveComplexity: ctx.maxCognitiveComplexity });
-  const result = buildAnalysisResult(fileAnalyses, files, ctx.targetDir);
+
+  let duplicationResult: import('./duplication/index.js').DuplicationResult | undefined;
+  if (options.duplication) {
+    if (!options.quiet) ctx.log('Detecting code duplication...');
+    const { detectDuplication } = await import('./duplication/index.js');
+    duplicationResult = detectDuplication(files, {
+      minTokens: options.minDuplicationTokens ? parseInt(options.minDuplicationTokens, 10) : undefined,
+      minLines: options.minDuplicationLines ? parseInt(options.minDuplicationLines, 10) : undefined,
+    });
+    if (!options.quiet) ctx.log(`Duplication: ${duplicationResult.percentage.toFixed(1)}% (${duplicationResult.clones.length} clone(s))`);
+  }
+
+  const result = buildAnalysisResult(fileAnalyses, files, ctx.targetDir, duplicationResult);
 
   printOptionalSections(fileAnalyses, options, ctx);
   handleOutput(result, ctx.format, options.output, ctx.colors);
@@ -153,6 +168,9 @@ program.command('analyze')
   .option('--baseline-path <path>', 'Path to baseline file', '.codopsy-baseline.json')
   .option('--no-degradation', 'Exit 1 if quality degrades vs baseline')
   .option('--hotspots', 'Show hotspot analysis (high complexity + high churn)')
+  .option('--duplication', 'Detect copy-paste code duplication (zero-dependency)')
+  .option('--min-duplication-tokens <n>', 'Minimum tokens for a clone block', '50')
+  .option('--min-duplication-lines <n>', 'Minimum lines for a clone block', '5')
   .action(analyzeAction);
 
 program.command('init')

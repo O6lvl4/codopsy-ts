@@ -1,5 +1,18 @@
 import * as ts from 'typescript';
 
+export function collectBindingNames(node: ts.BindingName): string[] {
+  if (ts.isIdentifier(node)) return [node.text];
+  const names: string[] = [];
+  if (ts.isObjectBindingPattern(node) || ts.isArrayBindingPattern(node)) {
+    for (const element of node.elements) {
+      if (ts.isBindingElement(element)) {
+        names.push(...collectBindingNames(element.name));
+      }
+    }
+  }
+  return names;
+}
+
 export function getMethodName(node: ts.MethodDeclaration): string {
   if (ts.isIdentifier(node.name)) {
     return node.name.text;

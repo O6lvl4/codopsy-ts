@@ -1,38 +1,10 @@
 import * as ts from 'typescript';
 import { Issue, Severity } from '../types.js';
 import { createIssue, getLineAndColumn } from '../lint-utils.js';
+import { collectBindingNames } from '../ast-utils.js';
+import { ASSIGNMENT_OPERATORS, UPDATE_OPERATORS } from '../syntax-kinds.js';
 
-const ASSIGN_OPS = new Set([
-  ts.SyntaxKind.EqualsToken,
-  ts.SyntaxKind.PlusEqualsToken,
-  ts.SyntaxKind.MinusEqualsToken,
-  ts.SyntaxKind.AsteriskEqualsToken,
-  ts.SyntaxKind.SlashEqualsToken,
-  ts.SyntaxKind.PercentEqualsToken,
-  ts.SyntaxKind.AmpersandEqualsToken,
-  ts.SyntaxKind.BarEqualsToken,
-  ts.SyntaxKind.CaretEqualsToken,
-  ts.SyntaxKind.LessThanLessThanEqualsToken,
-  ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,
-  ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken,
-  ts.SyntaxKind.AsteriskAsteriskEqualsToken,
-  ts.SyntaxKind.BarBarEqualsToken,
-  ts.SyntaxKind.AmpersandAmpersandEqualsToken,
-  ts.SyntaxKind.QuestionQuestionEqualsToken,
-]);
 
-function collectBindingNames(node: ts.BindingName): string[] {
-  if (ts.isIdentifier(node)) return [node.text];
-  const names: string[] = [];
-  if (ts.isObjectBindingPattern(node) || ts.isArrayBindingPattern(node)) {
-    for (const element of node.elements) {
-      if (ts.isBindingElement(element)) {
-        names.push(...collectBindingNames(element.name));
-      }
-    }
-  }
-  return names;
-}
 
 function collectParamNames(params: ts.NodeArray<ts.ParameterDeclaration>): Set<string> {
   const names = new Set<string>();
@@ -65,7 +37,7 @@ function isPropertyAccess(node: ts.Node): boolean {
 }
 
 function findBinaryAssignmentTarget(node: ts.Node, paramNames: Set<string>, checkProps: boolean): string | null {
-  if (!ts.isBinaryExpression(node) || !ASSIGN_OPS.has(node.operatorToken.kind)) {
+  if (!ts.isBinaryExpression(node) || !ASSIGNMENT_OPERATORS.has(node.operatorToken.kind)) {
     return null;
   }
   const left = node.left;
@@ -81,11 +53,10 @@ function findBinaryAssignmentTarget(node: ts.Node, paramNames: Set<string>, chec
   return null;
 }
 
-const UNARY_UPDATE_OPS = new Set([ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken]);
 
 function findUnaryAssignmentTarget(node: ts.Node, paramNames: Set<string>, checkProps: boolean): string | null {
   if (!ts.isPrefixUnaryExpression(node) && !ts.isPostfixUnaryExpression(node)) return null;
-  if (!UNARY_UPDATE_OPS.has(node.operator)) return null;
+  if (!UPDATE_OPERATORS.has(node.operator)) return null;
   return findAssignmentTargetName(node.operand, paramNames, checkProps);
 }
 

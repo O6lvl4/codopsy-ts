@@ -61,41 +61,30 @@ export interface CodopsyConfig {
 
 const CONFIG_FILENAME = '.codopsyrc.json';
 
+function tryReadConfig(configPath: string): CodopsyConfig | null {
+  if (!fs.existsSync(configPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(configPath, 'utf-8')) as CodopsyConfig;
+  } catch {
+    return {};
+  }
+}
+
 export function loadConfig(targetDir: string): CodopsyConfig {
   let dir = path.resolve(targetDir);
   const root = path.parse(dir).root;
   const home = os.homedir();
 
   while (true) {
-    const configPath = path.join(dir, CONFIG_FILENAME);
-    if (fs.existsSync(configPath)) {
-      try {
-        const content = fs.readFileSync(configPath, 'utf-8');
-        return JSON.parse(content) as CodopsyConfig;
-      } catch {
-        return {};
-      }
-    }
+    const config = tryReadConfig(path.join(dir, CONFIG_FILENAME));
+    if (config !== null) return config;
 
-    if (dir === root || dir === home) {
-      break;
-    }
+    if (dir === root || dir === home) break;
 
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
 
-  // Check home directory as last resort
-  const homeConfig = path.join(home, CONFIG_FILENAME);
-  if (fs.existsSync(homeConfig)) {
-    try {
-      const content = fs.readFileSync(homeConfig, 'utf-8');
-      return JSON.parse(content) as CodopsyConfig;
-    } catch {
-      return {};
-    }
-  }
-
-  return {};
+  return tryReadConfig(path.join(home, CONFIG_FILENAME)) ?? {};
 }

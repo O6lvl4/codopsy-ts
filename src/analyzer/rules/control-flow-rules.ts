@@ -1,13 +1,7 @@
 import * as ts from 'typescript';
 import { Issue, Severity } from '../types.js';
 import { createIssue, getLineAndColumn } from '../lint-utils.js';
-
-const TERMINATOR_KINDS = new Set([
-  ts.SyntaxKind.ReturnStatement,
-  ts.SyntaxKind.ThrowStatement,
-  ts.SyntaxKind.BreakStatement,
-  ts.SyntaxKind.ContinueStatement,
-]);
+import { TERMINATOR_KINDS } from '../syntax-kinds.js';
 
 export function checkNoUnreachable(
   sourceFile: ts.SourceFile,
@@ -104,12 +98,6 @@ export function checkNoFallthrough(
   visit(sourceFile);
 }
 
-const UNSAFE_FINALLY_KINDS = new Set([
-  ts.SyntaxKind.ReturnStatement,
-  ts.SyntaxKind.ThrowStatement,
-  ts.SyntaxKind.BreakStatement,
-  ts.SyntaxKind.ContinueStatement,
-]);
 
 export function checkNoUnsafeFinally(
   sourceFile: ts.SourceFile,
@@ -121,7 +109,7 @@ export function checkNoUnsafeFinally(
     if (ts.isTryStatement(node) && node.finallyBlock) {
       const finallyBlock = node.finallyBlock;
       function checkFinally(n: ts.Node) {
-        if (UNSAFE_FINALLY_KINDS.has(n.kind)) {
+        if (TERMINATOR_KINDS.has(n.kind)) {
           const { line, column } = getLineAndColumn(sourceFile, n.getStart(sourceFile));
           issues.push(createIssue({
             file: filePath, line, column, severity, rule: 'no-unsafe-finally',
